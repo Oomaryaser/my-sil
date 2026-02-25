@@ -8,6 +8,41 @@ export interface Salary {
   notes?: string;
 }
 
+export type IncomeType = 'salary' | 'freelance' | 'side';
+
+export interface IncomeSource {
+  id: string;
+  month: string;
+  name: string;
+  type: IncomeType;
+  expected_amount: number;
+  notes?: string;
+  // joined
+  payments?: IncomePayment[];
+  paid_total?: number;
+}
+
+export interface IncomePayment {
+  id: string;
+  source_id: string;
+  month: string;
+  amount: number;
+  date?: string;
+  notes?: string;
+}
+
+export const INCOME_TYPE_LABEL: Record<IncomeType, string> = {
+  salary:   '💵 راتب',
+  freelance:'💻 فريلانس',
+  side:     '⚡ دخل جانبي',
+};
+
+export const INCOME_TYPE_COLOR: Record<IncomeType, string> = {
+  salary:   'var(--accent)',
+  freelance:'#a78bfa',
+  side:     'var(--green)',
+};
+
 export interface Expense {
   id: string;
   month: string;

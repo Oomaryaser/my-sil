@@ -1,24 +1,29 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CAT_ICONS, CAT_NAMES, Expense, ExpenseType, Salary, formatNum, getMonthName } from '@/lib/types';
+import { CAT_ICONS, CAT_NAMES, Expense, ExpenseType, IncomeSource, Salary, formatNum, getMonthName } from '@/lib/types';
 import ExpenseModal from '@/components/ExpenseModal';
 import Toast from '@/components/Toast';
+import PinLock from '@/components/PinLock';
+import IncomePage from '@/components/IncomePage';
 
-type Page = 'dashboard' | 'salary' | 'planned' | 'actual' | 'history' | 'telegram';
+type Page = 'dashboard' | 'income' | 'planned' | 'actual' | 'history' | 'telegram';
 
 interface MonthData {
   salary: Salary | null;
   planned: Expense[];
   actual: Expense[];
+  income_sources: IncomeSource[];
 }
 
 export default function Home() {
   const [page, setPage] = useState<Page>('dashboard');
   const [currentMonth, setCurrentMonth] = useState(() => new Date().toISOString().slice(0, 7));
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [months, setMonths] = useState<Record<string, MonthData>>({});
   const [loading, setLoading] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
 
   // Salary form
   const [base, setBase] = useState('');
@@ -143,7 +148,10 @@ export default function Home() {
 
   // ── DERIVED DATA ───────────────────────────────────────────
   const d = getMonthData();
-  const sal = d.salary ? Number(d.salary.total) : 0;
+  const incomeSources: IncomeSource[] = d.income_sources || [];
+  const totalIncome = incomeSources.reduce((s, src) => s + Number(src.paid_total ?? 0), 0);
+  const totalExpectedIncome = incomeSources.reduce((s, src) => s + Number(src.expected_amount), 0);
+  const sal = totalIncome || (d.salary ? Number(d.salary.total) : 0);
   const plannedTotal = d.planned.reduce((s, e) => s + Number(e.amount), 0);
   const actualTotal = d.actual.reduce((s, e) => s + Number(e.amount), 0);
   const balance = sal - actualTotal;
@@ -152,17 +160,31 @@ export default function Home() {
   // ── RENDER ─────────────────────────────────────────────────
   const navItems: { id: Page; icon: string; label: string }[] = [
     { id: 'dashboard', icon: '📊', label: 'لوحة التحكم' },
-    { id: 'salary', icon: '💵', label: 'الراتب' },
-    { id: 'planned', icon: '📋', label: 'المصاريف المتوقعة' },
-    { id: 'actual', icon: '🧾', label: 'المصاريف الفعلية' },
-    { id: 'history', icon: '📅', label: 'السجل الشهري' },
-    { id: 'telegram', icon: '✈️', label: 'بوت تليغرام' },
+    { id: 'income',    icon: '�', label: 'الدخل' },
+    { id: 'planned',   icon: '📋', label: 'المصاريف المتوقعة' },
+    { id: 'actual',    icon: '🧾', label: 'المصاريف الفعلية' },
+    { id: 'history',   icon: '📅', label: 'السجل الشهري' },
+    { id: 'telegram',  icon: '✈️', label: 'بوت تليغرام' },
   ];
 
   return (
     <>
+      {!unlocked && <PinLock onUnlocked={() => setUnlocked(true)} />}
+
+      {/* Mobile top bar */}
+      <div className="mobile-topbar">
+        <button className="hamburger" onClick={() => setSidebarOpen(true)}>☰</button>
+        <span className="mobile-title">💰 مدير الراتب</span>
+        <button className="theme-toggle-mini" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>
+          {theme === 'dark' ? '☀️' : '🌙'}
+        </button>
+      </div>
+
+      {/* Sidebar overlay (mobile) */}
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
+
       {/* Sidebar */}
-      <aside className="sidebar">
+      <aside className={`sidebar${sidebarOpen ? ' sidebar-open' : ''}`}>
         <div className="logo">
           <h1>💰 مدير الراتب</h1>
           <p>تتبع دخلك ومصاريفك</p>
@@ -173,7 +195,7 @@ export default function Home() {
             <div
               key={item.id}
               className={`nav-item${page === item.id ? ' active' : ''}`}
-              onClick={() => setPage(item.id)}
+              onClick={() => { setPage(item.id); setSidebarOpen(false); }}
             >
               <span className="icon">{item.icon}</span> {item.label}
             </div>
@@ -212,17 +234,17 @@ export default function Home() {
 
           <div className="cards-grid">
             <div className="stat-card blue">
-              <div className="stat-label">الراتب</div>
+              <div className="stat-label">الدخل المحصّل</div>
               <div className="stat-value blue">{formatNum(sal)}</div>
-              <div className="stat-sub">صافي هذا الشهر</div>
+              <div className="stat-sub">من أصل {formatNum(totalExpectedIncome)}</div>
             </div>
             <div className="stat-card purple">
-              <div className="stat-label">المتوقع</div>
+              <div className="stat-label">المصاريف المتوقعة</div>
               <div className="stat-value purple">{formatNum(plannedTotal)}</div>
               <div className="stat-sub">{d.planned.length} مصروف مخطط</div>
             </div>
             <div className="stat-card red">
-              <div className="stat-label">الفعلي</div>
+              <div className="stat-label">المصاريف الفعلية</div>
               <div className="stat-value red">{formatNum(actualTotal)}</div>
               <div className="stat-sub">{d.actual.length} معاملة</div>
               <div className="progress-wrap">
@@ -232,7 +254,7 @@ export default function Home() {
             <div className={`stat-card ${balance >= 0 ? 'green' : 'red'}`}>
               <div className="stat-label">الرصيد المتبقي</div>
               <div className={`stat-value ${balance >= 0 ? 'green' : 'red'}`}>{formatNum(balance)}</div>
-              <div className="stat-sub">{pct}% من الراتب صُرف</div>
+              <div className="stat-sub">{pct}% من الدخل صُرف</div>
             </div>
           </div>
 
@@ -283,64 +305,18 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Salary */}
-        <div className={`page${page === 'salary' ? ' active fade-in' : ''}`}>
+        {/* Income */}
+        <div className={`page${page === 'income' ? ' active fade-in' : ''}`}>
           <div className="page-header">
-            <h2>الراتب 💵</h2>
-            <p>سجل راتبك الشهري</p>
+            <h2>الدخل �</h2>
+            <p>راتب · فريلانس · دخل جانبي</p>
           </div>
-          <div className="panel">
-            <div className="panel-header"><h3>تسجيل الراتب</h3></div>
-            <div className="panel-body">
-              <div className="form-row">
-                <div className="form-group">
-                  <label>الراتب الأساسي</label>
-                  <input type="number" className="form-control" value={base} onChange={e => setBase(e.target.value)} placeholder="مثل: 5000" />
-                </div>
-                <div className="form-group">
-                  <label>بدلات (اختياري)</label>
-                  <input type="number" className="form-control" value={allowances} onChange={e => setAllowances(e.target.value)} placeholder="مثل: 500" />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>خصومات (اختياري)</label>
-                  <input type="number" className="form-control" value={deductions} onChange={e => setDeductions(e.target.value)} placeholder="مثل: 200" />
-                </div>
-                <div className="form-group">
-                  <label>إجمالي الراتب</label>
-                  <input type="number" className="form-control" value={totalSalary || ''} readOnly style={{ background: 'rgba(79,156,249,0.05)', color: 'var(--accent)' }} />
-                </div>
-              </div>
-              <div className="form-row single">
-                <div className="form-group">
-                  <label>ملاحظات</label>
-                  <input className="form-control" value={salaryNotes} onChange={e => setSalaryNotes(e.target.value)} placeholder="أي ملاحظات عن هذا الشهر..." />
-                </div>
-              </div>
-              <button className="btn btn-primary" onClick={saveSalary}>💾 حفظ الراتب</button>
-            </div>
-          </div>
-
-          <div className="panel">
-            <div className="panel-header"><h3>رواتب الأشهر السابقة</h3></div>
-            <div className="panel-body">
-              {Object.entries(months).filter(([, md]) => md.salary).length === 0 ? (
-                <div className="empty-state"><div className="icon">💵</div><p>لا يوجد سجل رواتب</p></div>
-              ) : Object.entries(months).filter(([, md]) => md.salary).sort((a, b) => b[0].localeCompare(a[0])).map(([m, md]) => (
-                <div key={m} className="expense-item">
-                  <div className="expense-left">
-                    <div className="expense-icon cat-transport">💵</div>
-                    <div>
-                      <div className="expense-name">{getMonthName(m)}</div>
-                      <div className="expense-cat">{md.salary?.notes || 'لا توجد ملاحظات'}</div>
-                    </div>
-                  </div>
-                  <span className="expense-amount" style={{ color: 'var(--green)' }}>{formatNum(Number(md.salary?.total))}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <IncomePage
+            month={currentMonth}
+            sources={incomeSources}
+            onRefresh={loadAll}
+            showToast={showToast}
+          />
         </div>
 
         {/* Planned */}
@@ -460,14 +436,15 @@ export default function Home() {
               {Object.keys(months).length === 0 ? (
                 <div className="empty-state"><div className="icon">📅</div><p>لا يوجد سجل بعد</p></div>
               ) : Object.entries(months).sort((a, b) => b[0].localeCompare(a[0])).map(([m, md]) => {
-                const mSal = md.salary ? Number(md.salary.total) : 0;
+                const mIncome = (md.income_sources || []).reduce((s: number, src: IncomeSource) => s + Number(src.paid_total ?? 0), 0);
+                const mSal = mIncome || (md.salary ? Number(md.salary.total) : 0);
                 const mActual = md.actual.reduce((s, e) => s + Number(e.amount), 0);
                 const mBal = mSal - mActual;
                 return (
                   <div key={m} className="history-month" onClick={() => { setCurrentMonth(m); setPage('dashboard'); }}>
                     <div>
                       <div className="name">{getMonthName(m)}</div>
-                      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>💵 {formatNum(mSal)} راتب · {md.actual.length} مصروف</div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>� {formatNum(mSal)} دخل · {md.actual.length} مصروف</div>
                     </div>
                     <div className="stats">
                       <span style={{ color: 'var(--red)' }}>صُرف {formatNum(mActual)}</span>
