@@ -6,6 +6,7 @@ import ExpenseModal from '@/components/ExpenseModal';
 import Toast from '@/components/Toast';
 import PinLock from '@/components/PinLock';
 import IncomePage from '@/components/IncomePage';
+import CopyPlannedDialog from '@/components/CopyPlannedDialog';
 
 type Page = 'dashboard' | 'income' | 'planned' | 'actual' | 'history' | 'telegram';
 
@@ -38,6 +39,9 @@ export default function Home() {
   // Toast
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' as 'success' | 'error' });
 
+  // Copy planned dialog
+  const [copyDialog, setCopyDialog] = useState<{ fromMonth: string; toMonth: string; expenses: Expense[] } | null>(null);
+
   // ── HELPERS ────────────────────────────────────────────────
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ visible: true, message, type });
@@ -56,8 +60,10 @@ export default function Home() {
       if (!res.ok) throw new Error();
       const data = await res.json();
       setMonths(data);
+      return data as Record<string, MonthData>;
     } catch {
       showToast('خطأ في تحميل البيانات', 'error');
+      return null;
     } finally {
       setLoading(false);
     }
@@ -66,6 +72,59 @@ export default function Home() {
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  // ── CHECK: prompt to copy planned from previous month ─────
+  // Runs when currentMonth changes (or data loads) — only if current month has no planned
+  useEffect(() => {
+    if (!months || Object.keys(months).length === 0) return;
+
+    const current = months[currentMonth];
+    const currentPlanned = current?.planned ?? [];
+    if (currentPlanned.length > 0) return; // already has planned expenses
+
+    // Find previous month
+    const [y, m] = currentMonth.split('-').map(Number);
+    const prevDate = new Date(y, m - 2, 1); // m-2 because months are 0-indexed
+    const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+
+    const prevData = months[prevMonth];
+    const prevPlanned = prevData?.planned ?? [];
+    if (prevPlanned.length === 0) return; // nothing to copy
+
+    // Check we haven't already asked for this month this session
+    const askedKey = `copy_asked_${currentMonth}`;
+    if (sessionStorage.getItem(askedKey)) return;
+    sessionStorage.setItem(askedKey, '1');
+
+    // Show dialog
+    setCopyDialog({ fromMonth: prevMonth, toMonth: currentMonth, expenses: prevPlanned });
+  }, [currentMonth, months]);
+
+  // ── COPY PLANNED: confirm handler ─────────────────────────
+  const handleCopyConfirm = async (items: Expense[]) => {
+    try {
+      for (const e of items) {
+        await fetch('/api/expenses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
+            month: currentMonth,
+            name: e.name,
+            amount: e.amount,
+            category: e.category,
+            notes: e.notes || '',
+            type: 'planned',
+          }),
+        });
+      }
+      setCopyDialog(null);
+      showToast(`✅ تم نسخ ${items.length} مصروف متوقع`);
+      await loadAll();
+    } catch {
+      showToast('خطأ في النسخ', 'error');
+    }
+  };
 
   // ── THEME ──────────────────────────────────────────────────
   useEffect(() => {
@@ -510,6 +569,17 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {/* Copy Planned Dialog */}
+      {copyDialog && (
+        <CopyPlannedDialog
+          fromMonth={copyDialog.fromMonth}
+          toMonth={copyDialog.toMonth}
+          expenses={copyDialog.expenses}
+          onConfirm={handleCopyConfirm}
+          onSkip={() => setCopyDialog(null)}
+        />
+      )}
 
       {/* Modal */}
       <ExpenseModal

@@ -83,6 +83,7 @@ export default function ExpenseModal({ isOpen, type, onClose, onSave }: Props) {
               <option value="gift">🎁 هدية</option>
               <option value="charity">🤲 هبة / صدقة</option>
               <option value="savings">🏦 ادخار</option>
+              <option value="family">👨‍👩‍👧 عائلة</option>
               <option value="other">📦 أخرى</option>
             </select>
           </div>

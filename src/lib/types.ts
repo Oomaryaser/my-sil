@@ -65,6 +65,7 @@ export const CAT_ICONS: Record<string, string> = {
   gift: '🎁',
   charity: '🤲',
   savings: '🏦',
+  family: '👨‍👩‍👧',
   other: '📦',
 };
 
@@ -78,6 +79,7 @@ export const CAT_NAMES: Record<string, string> = {
   gift: 'هدية',
   charity: 'هبة / صدقة',
   savings: 'ادخار',
+  family: 'عائلة',
   other: 'أخرى',
 };
 
