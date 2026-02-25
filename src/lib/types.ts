@@ -62,6 +62,9 @@ export const CAT_ICONS: Record<string, string> = {
   shopping: '🛍️',
   health: '💊',
   entertainment: '🎬',
+  gift: '🎁',
+  charity: '🤲',
+  savings: '🏦',
   other: '📦',
 };
 
@@ -72,6 +75,9 @@ export const CAT_NAMES: Record<string, string> = {
   shopping: 'تسوق',
   health: 'صحة',
   entertainment: 'ترفيه',
+  gift: 'هدية',
+  charity: 'هبة / صدقة',
+  savings: 'ادخار',
   other: 'أخرى',
 };
 
@@ -86,5 +92,28 @@ export function getMonthName(m: string): string {
 }
 
 export function formatNum(n: number | null | undefined): string {
-  return Number(n || 0).toLocaleString('ar-SA');
+  return Number(n || 0).toLocaleString('en-US', { useGrouping: true });
+}
+
+/** تحويل "YYYY-MM-DD" أو Date إلى "YYYY/M/D" */
+export function formatDate(d: string | Date | undefined | null): string {
+  if (!d) return '';
+  const s = typeof d === 'string' ? d : d.toISOString().slice(0, 10);
+  const [y, m, day] = s.split('-');
+  return `${y}/${parseInt(m)}/${parseInt(day)}`;
+}
+
+/** تاريخ اليوم بصيغة "YYYY/M/D" */
+export function todayFormatted(): string {
+  return formatDate(new Date().toISOString().slice(0, 10));
+}
+
+const DAYS_AR = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+
+/** اسم اليوم بالعربي لتاريخ "YYYY-MM-DD" */
+export function getDayName(dateStr: string): string {
+  if (!dateStr || dateStr === 'غير محدد') return '';
+  const [y, m, day] = dateStr.split('-').map(Number);
+  const d = new Date(y, m - 1, day);
+  return DAYS_AR[d.getDay()];
 }

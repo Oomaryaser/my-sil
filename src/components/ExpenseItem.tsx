@@ -1,6 +1,6 @@
 'use client';
 
-import { CAT_ICONS, CAT_NAMES, Expense, ExpenseType } from '@/lib/types';
+import { CAT_ICONS, CAT_NAMES, Expense, ExpenseType, formatNum } from '@/lib/types';
 
 interface Props {
   expense: Expense;
@@ -28,7 +28,7 @@ export default function ExpenseItem({ expense, type, onDelete }: Props) {
       </div>
       <div className="expense-right">
         <span className="expense-amount" style={{ color: isActual ? 'var(--red)' : 'var(--accent)' }}>
-          {Number(expense.amount).toLocaleString('ar-SA')}
+          {formatNum(Number(expense.amount))}
         </span>
         <button className="btn btn-danger btn-sm" onClick={() => onDelete(expense.id, type)}>
           🗑️

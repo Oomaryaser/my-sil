@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CAT_ICONS, CAT_NAMES, Expense, ExpenseType, IncomeSource, Salary, formatNum, getMonthName } from '@/lib/types';
+import { CAT_ICONS, CAT_NAMES, Expense, ExpenseType, IncomeSource, Salary, formatNum, formatDate, getDayName, getMonthName, todayFormatted } from '@/lib/types';
 import ExpenseModal from '@/components/ExpenseModal';
 import Toast from '@/components/Toast';
 import PinLock from '@/components/PinLock';
@@ -175,6 +175,7 @@ export default function Home() {
       <div className="mobile-topbar">
         <button className="hamburger" onClick={() => setSidebarOpen(true)}>☰</button>
         <span className="mobile-title">💰 مدير الراتب</span>
+        <span className="mobile-date">{todayFormatted()}</span>
         <button className="theme-toggle-mini" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>
           {theme === 'dark' ? '☀️' : '🌙'}
         </button>
@@ -229,7 +230,7 @@ export default function Home() {
         <div className={`page${page === 'dashboard' ? ' active fade-in' : ''}`}>
           <div className="page-header">
             <h2>لوحة التحكم 📊</h2>
-            <p>{getMonthName(currentMonth)} — نظرة عامة</p>
+            <p>{getMonthName(currentMonth)} — نظرة عامة &nbsp;·&nbsp; <span style={{ color: 'var(--accent)', fontWeight: 600 }}>اليوم: {todayFormatted()}</span></p>
           </div>
 
           <div className="cards-grid">
@@ -295,7 +296,7 @@ export default function Home() {
                     <div className={`expense-icon cat-${e.category}`}>{CAT_ICONS[e.category] || '📦'}</div>
                     <div>
                       <div className="expense-name">{e.name}</div>
-                      <div className="expense-cat">{CAT_NAMES[e.category] || 'أخرى'}{e.date ? ` · ${e.date}` : ''}</div>
+                      <div className="expense-cat">{CAT_NAMES[e.category] || 'أخرى'}{e.date ? ` · ${formatDate(e.date)}` : ''}</div>
                     </div>
                   </div>
                   <span className="expense-amount" style={{ color: 'var(--red)' }}>{formatNum(Number(e.amount))}</span>
@@ -393,10 +394,13 @@ export default function Home() {
                     });
                     return Object.entries(byDate).map(([date, expenses]) => {
                       const dayTotal = expenses.reduce((s, e) => s + Number(e.amount), 0);
+                      const dayLabel = date !== 'غير محدد'
+                        ? `${getDayName(date)} · ${formatDate(date)}`
+                        : 'غير محدد';
                       return (
                         <div key={date} style={{ marginBottom: 16 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, padding: '0 4px' }}>
-                            <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>{date}</span>
+                            <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>{dayLabel}</span>
                             <span style={{ fontSize: 12, color: 'var(--red)' }}>{formatNum(dayTotal)}</span>
                           </div>
                           {expenses.map(e => (

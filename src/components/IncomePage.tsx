@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { IncomeSource, IncomePayment, IncomeType, INCOME_TYPE_LABEL, INCOME_TYPE_COLOR, formatNum } from '@/lib/types';
+import { IncomeSource, IncomePayment, IncomeType, INCOME_TYPE_LABEL, INCOME_TYPE_COLOR, formatNum, formatDate } from '@/lib/types';
 
 interface Props {
   month: string;
@@ -203,7 +203,7 @@ export default function IncomePage({ month, sources, onRefresh, showToast }: Pro
                       <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', borderRadius: 8, background: 'rgba(34,197,94,0.08)', marginBottom: 4 }}>
                         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--green)' }}>+{formatNum(Number(p.amount))}</span>
-                          {p.date && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.date}</span>}
+                          {p.date && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(p.date)}</span>}
                           {p.notes && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.notes}</span>}
                         </div>
                         <button className="btn btn-danger btn-sm" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => deletePayment(p.id)}>✕</button>
