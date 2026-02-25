@@ -432,6 +432,53 @@ export default function Home() {
               <h3>المصاريف الفعلية</h3>
               <button className="btn btn-primary btn-sm" onClick={() => { setModalType('actual'); setModalOpen(true); }}>+ إضافة مصروف</button>
             </div>
+
+            {/* Quick-add from planned */}
+            {d.planned.length > 0 && (
+              <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600, flexShrink: 0 }}>📋 من المتوقعة:</span>
+                <select
+                  className="form-control"
+                  style={{ flex: 1, minWidth: 160, fontSize: 13, padding: '7px 10px' }}
+                  defaultValue=""
+                  onChange={async e => {
+                    const id = e.target.value;
+                    if (!id) return;
+                    e.target.value = '';
+                    const src = d.planned.find(p => p.id === id);
+                    if (!src) return;
+                    try {
+                      const res = await fetch('/api/expenses', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          id: Date.now().toString(),
+                          month: currentMonth,
+                          name: src.name,
+                          amount: src.amount,
+                          category: src.category,
+                          notes: src.notes || '',
+                          date: new Date().toISOString().slice(0, 10),
+                          type: 'actual',
+                        }),
+                      });
+                      if (!res.ok) throw new Error();
+                      showToast(`✅ تم تسجيل "${src.name}" كمصروف فعلي`);
+                      await loadAll();
+                    } catch {
+                      showToast('خطأ في التسجيل', 'error');
+                    }
+                  }}
+                >
+                  <option value="">اختر مصروفاً متوقعاً…</option>
+                  {d.planned.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {CAT_ICONS[p.category] || '📦'} {p.name} — {formatNum(Number(p.amount))}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="panel-body">
               {d.actual.length === 0 ? (
                 <div className="empty-state"><div className="icon">🧾</div><p>لا توجد مصاريف — سجل أول مصروف!</p></div>
