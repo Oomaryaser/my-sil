@@ -1,7 +1,5 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-
 interface Props {
   message: string;
   type: 'success' | 'error';

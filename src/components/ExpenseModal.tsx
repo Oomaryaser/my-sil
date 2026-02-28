@@ -26,17 +26,12 @@ export default function ExpenseModal({ isOpen, type, onClose, onSave }: Props) {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
 
   useEffect(() => {
-    if (isOpen) {
-      setName(''); setAmount(''); setCategory('food'); setNotes('');
-      setDate(new Date().toISOString().slice(0, 10));
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
+
+  if (!isOpen) return null;
 
   const handleSave = () => {
     if (!name.trim() || !amount) { alert('أدخل الاسم والمبلغ'); return; }
@@ -52,7 +47,7 @@ export default function ExpenseModal({ isOpen, type, onClose, onSave }: Props) {
   };
 
   return (
-    <div className={`modal-overlay${isOpen ? ' open' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal fade-in">
         <div className="modal-header">
           <h3>{type === 'planned' ? '📋 إضافة مصروف متوقع' : '💸 إضافة مصروف فعلي'}</h3>

@@ -1,20 +1,23 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CAT_ICONS, CAT_NAMES, Expense, ExpenseType, IncomeSource, Salary, formatNum, formatDate, getDayName, getMonthName, todayFormatted } from '@/lib/types';
+import { buildHabitSummary } from '@/lib/habits';
+import { CAT_ICONS, CAT_NAMES, Expense, ExpenseType, Habit, IncomeSource, Salary, formatNum, formatDate, getDayName, getMonthName, todayFormatted } from '@/lib/types';
 import ExpenseModal from '@/components/ExpenseModal';
 import Toast from '@/components/Toast';
 import PinLock from '@/components/PinLock';
 import IncomePage from '@/components/IncomePage';
 import CopyPlannedDialog from '@/components/CopyPlannedDialog';
+import HabitsSection from '@/components/HabitsSection';
 
-type Page = 'dashboard' | 'income' | 'planned' | 'actual' | 'history' | 'telegram';
+type Page = 'dashboard' | 'income' | 'habits' | 'planned' | 'actual' | 'history' | 'telegram';
 
 interface MonthData {
   salary: Salary | null;
   planned: Expense[];
   actual: Expense[];
   income_sources: IncomeSource[];
+  habits: Habit[];
 }
 
 export default function Home() {
@@ -25,12 +28,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
-
-  // Salary form
-  const [base, setBase] = useState('');
-  const [allowances, setAllowances] = useState('');
-  const [deductions, setDeductions] = useState('');
-  const [salaryNotes, setSalaryNotes] = useState('');
 
   // Modal
   const [modalOpen, setModalOpen] = useState(false);
@@ -49,7 +46,7 @@ export default function Home() {
   };
 
   const getMonthData = useCallback((): MonthData => {
-    return months[currentMonth] || { salary: null, planned: [], actual: [] };
+    return months[currentMonth] || { salary: null, planned: [], actual: [], income_sources: [], habits: [] };
   }, [months, currentMonth]);
 
   // ── LOAD ALL DATA ─────────────────────────────────────────
@@ -137,44 +134,6 @@ export default function Home() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // ── SALARY: populate form ──────────────────────────────────
-  useEffect(() => {
-    const d = getMonthData();
-    if (d.salary) {
-      setBase(String(d.salary.base || ''));
-      setAllowances(String(d.salary.allowances || ''));
-      setDeductions(String(d.salary.deductions || ''));
-      setSalaryNotes(d.salary.notes || '');
-    } else {
-      setBase(''); setAllowances(''); setDeductions(''); setSalaryNotes('');
-    }
-  }, [currentMonth, months, getMonthData]);
-
-  const totalSalary = (parseFloat(base) || 0) + (parseFloat(allowances) || 0) - (parseFloat(deductions) || 0);
-
-  const saveSalary = async () => {
-    if (!base) { showToast('أدخل الراتب الأساسي', 'error'); return; }
-    try {
-      const res = await fetch('/api/salary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          month: currentMonth,
-          base: parseFloat(base) || 0,
-          allowances: parseFloat(allowances) || 0,
-          deductions: parseFloat(deductions) || 0,
-          total: totalSalary,
-          notes: salaryNotes,
-        }),
-      });
-      if (!res.ok) throw new Error();
-      showToast('✅ تم حفظ الراتب');
-      await loadAll();
-    } catch {
-      showToast('خطأ في الحفظ', 'error');
-    }
-  };
-
   // ── EXPENSES ───────────────────────────────────────────────
   const handleAddExpense = async (data: {
     id: string; name: string; amount: number; category: string; notes: string; date?: string; type: ExpenseType;
@@ -208,6 +167,7 @@ export default function Home() {
   // ── DERIVED DATA ───────────────────────────────────────────
   const d = getMonthData();
   const incomeSources: IncomeSource[] = d.income_sources || [];
+  const habits: Habit[] = d.habits || [];
   const totalIncome = incomeSources.reduce((s, src) => s + Number(src.paid_total ?? 0), 0);
   const totalExpectedIncome = incomeSources.reduce((s, src) => s + Number(src.expected_amount), 0);
   const sal = totalIncome || (d.salary ? Number(d.salary.total) : 0);
@@ -215,11 +175,13 @@ export default function Home() {
   const actualTotal = d.actual.reduce((s, e) => s + Number(e.amount), 0);
   const balance = sal - actualTotal;
   const pct = sal > 0 ? Math.min(100, Math.round(actualTotal / sal * 100)) : 0;
+  const habitSummary = buildHabitSummary(currentMonth, habits);
 
   // ── RENDER ─────────────────────────────────────────────────
   const navItems: { id: Page; icon: string; label: string }[] = [
     { id: 'dashboard', icon: '📊', label: 'لوحة التحكم' },
-    { id: 'income',    icon: '�', label: 'الدخل' },
+    { id: 'income',    icon: '💵', label: 'الدخل' },
+    { id: 'habits',    icon: '✅', label: 'العادات' },
     { id: 'planned',   icon: '📋', label: 'المصاريف المتوقعة' },
     { id: 'actual',    icon: '🧾', label: 'المصاريف الفعلية' },
     { id: 'history',   icon: '📅', label: 'السجل الشهري' },
@@ -318,6 +280,58 @@ export default function Home() {
             </div>
           </div>
 
+          <div className="panel">
+            <div className="panel-header">
+              <h3>ملخص العادات لهذا الشهر</h3>
+              <button className="btn btn-ghost btn-sm" onClick={() => setPage('habits')}>فتح المتابعة</button>
+            </div>
+            <div className="panel-body">
+              {habits.length === 0 ? (
+                <div className="empty-state"><div className="icon">✅</div><p>لا توجد عادات مضافة بعد. افتح قسم العادات لبدء التتبع الأسبوعي والشهري.</p></div>
+              ) : (
+                <>
+                  <div className="summary-bar">
+                    <div className="summary-item">
+                      <div className="label">العادات النشطة</div>
+                      <div className="val" style={{ color: 'var(--accent)' }}>{habits.length}</div>
+                    </div>
+                    <div className="summary-divider" />
+                    <div className="summary-item">
+                      <div className="label">التزام الشهر</div>
+                      <div className="val" style={{ color: 'var(--green)' }}>{habitSummary.completionRate}%</div>
+                    </div>
+                    <div className="summary-divider" />
+                    <div className="summary-item">
+                      <div className="label">أفضل عادة</div>
+                      <div className="val">{habitSummary.bestHabit ? `${habitSummary.bestHabit.icon} ${habitSummary.bestHabit.name}` : '—'}</div>
+                    </div>
+                    <div className="summary-divider" />
+                    <div className="summary-item">
+                      <div className="label">أفضل أسبوع</div>
+                      <div className="val" style={{ color: 'var(--orange)' }}>{habitSummary.bestWeek ? `${habitSummary.bestWeek.rate}%` : '0%'}</div>
+                    </div>
+                  </div>
+
+                  <div className="habit-dashboard-grid">
+                    {habitSummary.weeklyStats.map((week) => (
+                      <div key={week.label} className={`habit-dashboard-card ${week.status}`}>
+                        <div className="habit-dashboard-head">
+                          <strong>{week.label}</strong>
+                          <span>{week.startDay}-{week.endDay}</span>
+                        </div>
+                        <div className="habit-dashboard-rate">{week.total > 0 ? `${week.rate}%` : '0%'}</div>
+                        <div className="habit-dashboard-sub">{week.completed} / {week.total} إنجاز</div>
+                        <div className="progress-wrap">
+                          <div className="progress-bar" style={{ width: `${week.rate}%`, background: week.rate >= 80 ? 'var(--green)' : week.rate >= 50 ? 'var(--orange)' : 'var(--accent)' }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
           {/* Category breakdown */}
           <div className="panel">
             <div className="panel-header"><h3>توزيع المصاريف الفعلية</h3></div>
@@ -368,12 +382,26 @@ export default function Home() {
         {/* Income */}
         <div className={`page${page === 'income' ? ' active fade-in' : ''}`}>
           <div className="page-header">
-            <h2>الدخل �</h2>
+            <h2>الدخل 💵</h2>
             <p>راتب · فريلانس · دخل جانبي</p>
           </div>
           <IncomePage
             month={currentMonth}
             sources={incomeSources}
+            onRefresh={loadAll}
+            showToast={showToast}
+          />
+        </div>
+
+        {/* Habits */}
+        <div className={`page${page === 'habits' ? ' active fade-in' : ''}`}>
+          <div className="page-header">
+            <h2>العادات ✅</h2>
+            <p>متابعة يومية مع إحصائيات احترافية بنهاية كل أسبوع وشهر</p>
+          </div>
+          <HabitsSection
+            month={currentMonth}
+            habits={habits}
             onRefresh={loadAll}
             showToast={showToast}
           />
@@ -550,11 +578,12 @@ export default function Home() {
                 const mSal = mIncome || (md.salary ? Number(md.salary.total) : 0);
                 const mActual = md.actual.reduce((s, e) => s + Number(e.amount), 0);
                 const mBal = mSal - mActual;
+                const mHabits = md.habits?.length || 0;
                 return (
                   <div key={m} className="history-month" onClick={() => { setCurrentMonth(m); setPage('dashboard'); }}>
                     <div>
                       <div className="name">{getMonthName(m)}</div>
-                      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>� {formatNum(mSal)} دخل · {md.actual.length} مصروف</div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>💵 {formatNum(mSal)} دخل · {md.actual.length} مصروف · {mHabits} عادات</div>
                     </div>
                     <div className="stats">
                       <span style={{ color: 'var(--red)' }}>صُرف {formatNum(mActual)}</span>

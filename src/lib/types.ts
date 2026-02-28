@@ -55,6 +55,23 @@ export interface Expense {
 
 export type ExpenseType = 'planned' | 'actual';
 
+export interface HabitEntry {
+  id: string;
+  habit_id: string;
+  month: string;
+  date: string;
+}
+
+export interface Habit {
+  id: string;
+  month: string;
+  name: string;
+  icon?: string;
+  color?: string;
+  notes?: string;
+  entries?: HabitEntry[];
+}
+
 export const CAT_ICONS: Record<string, string> = {
   food: '🍔',
   transport: '🚗',
