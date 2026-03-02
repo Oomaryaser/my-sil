@@ -17,7 +17,6 @@ export interface IncomeSource {
   type: IncomeType;
   expected_amount: number;
   notes?: string;
-  // joined
   payments?: IncomePayment[];
   paid_total?: number;
 }
@@ -32,15 +31,15 @@ export interface IncomePayment {
 }
 
 export const INCOME_TYPE_LABEL: Record<IncomeType, string> = {
-  salary:   '💵 راتب',
-  freelance:'💻 فريلانس',
-  side:     '⚡ دخل جانبي',
+  salary: 'راتب',
+  freelance: 'فريلانس',
+  side: 'دخل جانبي',
 };
 
 export const INCOME_TYPE_COLOR: Record<IncomeType, string> = {
-  salary:   'var(--accent)',
-  freelance:'#a78bfa',
-  side:     'var(--green)',
+  salary: 'var(--accent)',
+  freelance: '#a78bfa',
+  side: 'var(--green)',
 };
 
 export interface Expense {
@@ -72,18 +71,55 @@ export interface Habit {
   entries?: HabitEntry[];
 }
 
-export const CAT_ICONS: Record<string, string> = {
-  food: '🍔',
-  transport: '🚗',
-  bills: '⚡',
-  shopping: '🛍️',
-  health: '💊',
-  entertainment: '🎬',
-  gift: '🎁',
-  charity: '🤲',
-  savings: '🏦',
-  family: '👨‍👩‍👧',
-  other: '📦',
+export type UserRole = 'admin' | 'user';
+export type SubscriptionStatus = 'active' | 'suspended';
+export type FeatureRequestStatus = 'pending' | 'planned' | 'in_progress' | 'done';
+
+export interface AppUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  subscription_status: SubscriptionStatus;
+  subscription_started_at: string;
+  subscription_expires_at: string;
+  created_at: string;
+  isSubscriptionActive: boolean;
+}
+
+export interface FeatureRequest {
+  id: string;
+  user_id: string;
+  title: string;
+  details: string;
+  status: FeatureRequestStatus;
+  admin_note?: string;
+  created_at: string;
+  updated_at: string;
+  user_name?: string;
+  user_email?: string;
+}
+
+export interface AdminUser extends AppUser {
+  feature_request_count?: number;
+  planned_expenses_count?: number;
+  actual_expenses_count?: number;
+  income_sources_count?: number;
+  habits_count?: number;
+}
+
+export const CAT_ICONS: Record<string, AppIconName> = {
+  food: 'food',
+  transport: 'transport',
+  bills: 'bills',
+  shopping: 'shopping',
+  health: 'health',
+  entertainment: 'entertainment',
+  gift: 'gift',
+  charity: 'charity',
+  savings: 'savings',
+  family: 'family',
+  other: 'other',
 };
 
 export const CAT_NAMES: Record<string, string> = {
@@ -101,38 +137,36 @@ export const CAT_NAMES: Record<string, string> = {
 };
 
 export const MONTHS_AR = [
-  'يناير','فبراير','مارس','أبريل','مايو','يونيو',
-  'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر',
+  'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+  'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
 ];
 
 export function getMonthName(m: string): string {
   const [y, mo] = m.split('-');
-  return MONTHS_AR[parseInt(mo) - 1] + ' ' + y;
+  return MONTHS_AR[parseInt(mo, 10) - 1] + ' ' + y;
 }
 
 export function formatNum(n: number | null | undefined): string {
   return Number(n || 0).toLocaleString('en-US', { useGrouping: true });
 }
 
-/** تحويل "YYYY-MM-DD" أو Date إلى "YYYY/M/D" */
 export function formatDate(d: string | Date | undefined | null): string {
   if (!d) return '';
   const s = typeof d === 'string' ? d : d.toISOString().slice(0, 10);
   const [y, m, day] = s.split('-');
-  return `${y}/${parseInt(m)}/${parseInt(day)}`;
+  return `${y}/${parseInt(m, 10)}/${parseInt(day, 10)}`;
 }
 
-/** تاريخ اليوم بصيغة "YYYY/M/D" */
 export function todayFormatted(): string {
   return formatDate(new Date().toISOString().slice(0, 10));
 }
 
-const DAYS_AR = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+const DAYS_AR = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
-/** اسم اليوم بالعربي لتاريخ "YYYY-MM-DD" */
 export function getDayName(dateStr: string): string {
   if (!dateStr || dateStr === 'غير محدد') return '';
   const [y, m, day] = dateStr.split('-').map(Number);
   const d = new Date(y, m - 1, day);
   return DAYS_AR[d.getDay()];
 }
+import type { AppIconName } from '@/lib/icons';

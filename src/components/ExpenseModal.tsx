@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import AppIcon from '@/components/AppIcon';
 import { ExpenseType } from '@/lib/types';
 
 interface Props {
@@ -50,8 +51,13 @@ export default function ExpenseModal({ isOpen, type, onClose, onSave }: Props) {
     <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal fade-in">
         <div className="modal-header">
-          <h3>{type === 'planned' ? '📋 إضافة مصروف متوقع' : '💸 إضافة مصروف فعلي'}</h3>
-          <button className="close-btn" onClick={onClose}>×</button>
+          <h3 className="title-with-icon">
+            <AppIcon name={type === 'planned' ? 'planned' : 'receipt'} size={18} />
+            <span>{type === 'planned' ? 'إضافة مصروف متوقع' : 'إضافة مصروف فعلي'}</span>
+          </h3>
+          <button className="close-btn" onClick={onClose}>
+            <AppIcon name="close" size={16} />
+          </button>
         </div>
 
         <div className="form-row">
@@ -69,17 +75,17 @@ export default function ExpenseModal({ isOpen, type, onClose, onSave }: Props) {
           <div className="form-group">
             <label>الفئة</label>
             <select className="form-control" value={category} onChange={e => setCategory(e.target.value)}>
-              <option value="food">🍔 طعام ومشروبات</option>
-              <option value="transport">🚗 مواصلات</option>
-              <option value="bills">⚡ فواتير</option>
-              <option value="shopping">🛍️ تسوق</option>
-              <option value="health">💊 صحة</option>
-              <option value="entertainment">🎬 ترفيه</option>
-              <option value="gift">🎁 هدية</option>
-              <option value="charity">🤲 هبة / صدقة</option>
-              <option value="savings">🏦 ادخار</option>
-              <option value="family">👨‍👩‍👧 عائلة</option>
-              <option value="other">📦 أخرى</option>
+              <option value="food">طعام ومشروبات</option>
+              <option value="transport">مواصلات</option>
+              <option value="bills">فواتير</option>
+              <option value="shopping">تسوق</option>
+              <option value="health">صحة</option>
+              <option value="entertainment">ترفيه</option>
+              <option value="gift">هدية</option>
+              <option value="charity">هبة / صدقة</option>
+              <option value="savings">ادخار</option>
+              <option value="family">عائلة</option>
+              <option value="other">أخرى</option>
             </select>
           </div>
           {type === 'actual' && (
@@ -98,8 +104,14 @@ export default function ExpenseModal({ isOpen, type, onClose, onSave }: Props) {
         </div>
 
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
-          <button className="btn btn-ghost" onClick={onClose}>إلغاء</button>
-          <button className="btn btn-primary" onClick={handleSave}>💾 حفظ</button>
+          <button className="btn btn-ghost btn-with-icon" onClick={onClose}>
+            <AppIcon name="close" size={16} />
+            <span>إلغاء</span>
+          </button>
+          <button className="btn btn-primary btn-with-icon" onClick={handleSave}>
+            <AppIcon name="save" size={16} />
+            <span>حفظ</span>
+          </button>
         </div>
       </div>
     </div>

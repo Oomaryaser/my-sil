@@ -1,113 +1,167 @@
-import { NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
-import { getDB } from '@/lib/db';
+import { NextResponse } from 'next/server';
+import { clearSessionCookie, getSessionUser, normalizeUser, setSessionCookie } from '@/lib/auth';
+import { claimLegacyDataForUser, getDB, initDB } from '@/lib/db';
 
-// In-memory rate limiter (per IP)
-const attempts = new Map<string, { count: number; resetAt: number }>();
-const MAX_ATTEMPTS = 5;
-const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+interface AuthUserRow {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'user';
+  subscription_status: 'active' | 'suspended';
+  subscription_started_at: string;
+  subscription_expires_at: string;
+  created_at: string;
+}
 
-function getClientIP(req: Request): string {
-  const forwarded = req.headers.get('x-forwarded-for');
-  return forwarded ? forwarded.split(',')[0].trim() : 'unknown';
+const MIN_PASSWORD_LENGTH = 6;
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+function isAdminEmail(email: string) {
+  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  return Boolean(adminEmail) && adminEmail === normalizeEmail(email);
+}
+
+async function registerUser(body: Record<string, unknown>) {
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  const email = typeof body.email === 'string' ? normalizeEmail(body.email) : '';
+  const password = typeof body.password === 'string' ? body.password : '';
+
+  if (name.length < 2) {
+    return NextResponse.json({ error: 'الاسم يجب أن يكون حرفين أو أكثر' }, { status: 400 });
+  }
+
+  if (!email.includes('@')) {
+    return NextResponse.json({ error: 'البريد الإلكتروني غير صالح' }, { status: 400 });
+  }
+
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return NextResponse.json({ error: 'كلمة المرور يجب أن تكون 6 أحرف أو أكثر' }, { status: 400 });
+  }
+
+  await initDB();
+  const sql = getDB();
+
+  const existing = await sql`SELECT id FROM users WHERE email = ${email} LIMIT 1`;
+  if (existing.length > 0) {
+    return NextResponse.json({ error: 'هذا البريد مسجل بالفعل' }, { status: 409 });
+  }
+
+  const countRows = await sql`SELECT COUNT(*)::int AS count FROM users`;
+  const isFirstUser = Number(countRows[0]?.count || 0) === 0;
+  const role = isFirstUser || isAdminEmail(email) ? 'admin' : 'user';
+  const userId = randomUUID();
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  const rows = await sql`
+    INSERT INTO users (
+      id,
+      name,
+      email,
+      password_hash,
+      role,
+      subscription_status,
+      subscription_started_at,
+      subscription_expires_at,
+      updated_at
+    )
+    VALUES (
+      ${userId},
+      ${name},
+      ${email},
+      ${passwordHash},
+      ${role},
+      'active',
+      NOW(),
+      NOW() + INTERVAL '1 year',
+      NOW()
+    )
+    RETURNING id, name, email, role, subscription_status, subscription_started_at, subscription_expires_at, created_at
+  `;
+
+  if (isFirstUser) {
+    await claimLegacyDataForUser(userId);
+  }
+
+  const response = NextResponse.json({ ok: true, user: normalizeUser(rows[0] as AuthUserRow) });
+  setSessionCookie(response, userId);
+  return response;
+}
+
+async function loginUser(body: Record<string, unknown>) {
+  const email = typeof body.email === 'string' ? normalizeEmail(body.email) : '';
+  const password = typeof body.password === 'string' ? body.password : '';
+
+  if (!email || !password) {
+    return NextResponse.json({ error: 'البريد وكلمة المرور مطلوبان' }, { status: 400 });
+  }
+
+  await initDB();
+  const sql = getDB();
+  const rows = await sql`
+    SELECT id, name, email, password_hash, role, subscription_status, subscription_started_at, subscription_expires_at, created_at
+    FROM users
+    WHERE email = ${email}
+    LIMIT 1
+  `;
+
+  if (!rows.length) {
+    return NextResponse.json({ error: 'الحساب غير موجود' }, { status: 404 });
+  }
+
+  const user = rows[0] as AuthUserRow & { password_hash: string };
+
+  const valid = await bcrypt.compare(password, user.password_hash);
+  if (!valid) {
+    return NextResponse.json({ error: 'كلمة المرور غير صحيحة' }, { status: 401 });
+  }
+
+  const response = NextResponse.json({
+    ok: true,
+    user: normalizeUser({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      subscription_status: user.subscription_status,
+      subscription_started_at: user.subscription_started_at,
+      subscription_expires_at: user.subscription_expires_at,
+      created_at: user.created_at,
+    }),
+  });
+  setSessionCookie(response, user.id);
+  return response;
+}
+
+export async function GET(req: Request) {
+  const user = await getSessionUser(req);
+  if (!user) {
+    return NextResponse.json({ authenticated: false, user: null });
+  }
+
+  return NextResponse.json({ authenticated: true, user });
 }
 
 export async function POST(req: Request) {
-  const ip = getClientIP(req);
-  const now = Date.now();
-
-  // Check rate limit
-  const record = attempts.get(ip);
-  if (record) {
-    if (now < record.resetAt && record.count >= MAX_ATTEMPTS) {
-      const waitMin = Math.ceil((record.resetAt - now) / 60000);
-      return NextResponse.json(
-        { ok: false, error: `تم تجاوز المحاولات. انتظر ${waitMin} دقيقة.` },
-        { status: 429 }
-      );
-    }
-    if (now >= record.resetAt) {
-      attempts.delete(ip);
-    }
-  }
-
   try {
-    const { pin } = await req.json();
-    if (!pin || typeof pin !== 'string' || pin.length < 4 || pin.length > 12) {
-      return NextResponse.json({ ok: false, error: 'رمز غير صالح' }, { status: 400 });
-    }
+    const body = await req.json();
+    const action = typeof body.action === 'string' ? body.action : '';
 
-    const sql = getDB();
-    const rows = await sql`SELECT value FROM app_config WHERE key = 'pin_hash'`;
+    if (action === 'register') return registerUser(body);
+    if (action === 'login') return loginUser(body);
 
-    if (!rows.length) {
-      return NextResponse.json({ ok: false, error: 'لم يتم إعداد الرمز بعد' }, { status: 500 });
-    }
-
-    const hash = rows[0].value as string;
-    const valid = await bcrypt.compare(pin, hash);
-
-    if (!valid) {
-      // Increment attempts
-      const cur = attempts.get(ip) || { count: 0, resetAt: now + LOCKOUT_MS };
-      cur.count += 1;
-      if (cur.count === 1) cur.resetAt = now + LOCKOUT_MS;
-      attempts.set(ip, cur);
-
-      const remaining = MAX_ATTEMPTS - cur.count;
-      const msg = remaining > 0
-        ? `رمز خاطئ. تبقى ${remaining} محاولة`
-        : `تم تجاوز المحاولات. انتظر 15 دقيقة`;
-
-      return NextResponse.json({ ok: false, error: msg }, { status: 401 });
-    }
-
-    // Success — clear attempts
-    attempts.delete(ip);
-
-    // Return a signed token (simple HMAC using SESSION_SECRET)
-    const secret = process.env.SESSION_SECRET || 'default_secret';
-    const payload = `unlocked:${Date.now()}`;
-    const { createHmac } = await import('crypto');
-    const token = createHmac('sha256', secret).update(payload).digest('hex');
-
-    const response = NextResponse.json({ ok: true });
-    // Set secure httpOnly cookie valid for 8 hours
-    response.cookies.set('sal_session', `${payload}:${token}`, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 60 * 60 * 8, // 8 hours
-      path: '/',
-    });
-
-    return response;
-  } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ error: 'الإجراء غير مدعوم' }, { status: 400 });
+  } catch (error) {
+    return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
 
-// Verify session cookie
-export async function GET(req: Request) {
-  const cookie = req.headers.get('cookie') || '';
-  const match = cookie.match(/sal_session=([^;]+)/);
-  if (!match) return NextResponse.json({ valid: false });
-
-  try {
-    const raw = decodeURIComponent(match[1]);
-    const parts = raw.split(':');
-    if (parts.length < 3) return NextResponse.json({ valid: false });
-
-    const token = parts.pop()!;
-    const payload = parts.join(':');
-
-    const secret = process.env.SESSION_SECRET || 'default_secret';
-    const { createHmac } = await import('crypto');
-    const expected = createHmac('sha256', secret).update(payload).digest('hex');
-
-    const valid = token === expected;
-    return NextResponse.json({ valid });
-  } catch {
-    return NextResponse.json({ valid: false });
-  }
+export async function DELETE() {
+  const response = NextResponse.json({ ok: true });
+  clearSessionCookie(response);
+  return response;
 }

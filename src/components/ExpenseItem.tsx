@@ -1,5 +1,6 @@
 'use client';
 
+import AppIcon from '@/components/AppIcon';
 import { CAT_ICONS, CAT_NAMES, Expense, ExpenseType, formatNum } from '@/lib/types';
 
 interface Props {
@@ -9,14 +10,14 @@ interface Props {
 }
 
 export default function ExpenseItem({ expense, type, onDelete }: Props) {
-  const icon = CAT_ICONS[expense.category] || '📦';
+  const icon = CAT_ICONS[expense.category] || '';
   const catName = CAT_NAMES[expense.category] || 'أخرى';
   const isActual = type === 'actual';
 
   return (
     <div className="expense-item">
       <div className="expense-left">
-        <div className={`expense-icon cat-${expense.category}`}>{icon}</div>
+        <div className={`expense-icon cat-${expense.category}`}><AppIcon name={icon || 'other'} size={18} /></div>
         <div>
           <div className="expense-name">{expense.name}</div>
           <div className="expense-cat">
@@ -31,7 +32,7 @@ export default function ExpenseItem({ expense, type, onDelete }: Props) {
           {formatNum(Number(expense.amount))}
         </span>
         <button className="btn btn-danger btn-sm" onClick={() => onDelete(expense.id, type)}>
-          🗑️
+          <AppIcon name="trash" size={14} />
         </button>
       </div>
     </div>

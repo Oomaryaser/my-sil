@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import AppIcon from '@/components/AppIcon';
 import { buildHabitSummary, getHabitColor } from '@/lib/habits';
+import { HABIT_ICON_OPTIONS, normalizeIconName } from '@/lib/icons';
 import { Habit, formatNum } from '@/lib/types';
 
 interface Props {
@@ -14,7 +16,7 @@ interface Props {
 export default function HabitsSection({ month, habits, onRefresh, showToast }: Props) {
   const [showAddHabit, setShowAddHabit] = useState(false);
   const [name, setName] = useState('');
-  const [icon, setIcon] = useState('✨');
+  const [icon, setIcon] = useState('sparkles');
   const [color, setColor] = useState('#4f9cf9');
   const [notes, setNotes] = useState('');
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export default function HabitsSection({ month, habits, onRefresh, showToast }: P
           id: `habit_${Date.now()}`,
           month,
           name: name.trim(),
-          icon: icon.trim() || '✨',
+          icon: icon.trim() || 'sparkles',
           color,
           notes: notes.trim(),
         }),
@@ -45,11 +47,11 @@ export default function HabitsSection({ month, habits, onRefresh, showToast }: P
       if (!res.ok) throw new Error();
 
       setName('');
-      setIcon('✨');
+      setIcon('sparkles');
       setColor('#4f9cf9');
       setNotes('');
       setShowAddHabit(false);
-      showToast('✅ تم إضافة العادة');
+      showToast('تم إضافة العادة');
       await onRefresh();
     } catch {
       showToast('خطأ في حفظ العادة', 'error');
@@ -82,7 +84,7 @@ export default function HabitsSection({ month, habits, onRefresh, showToast }: P
       const res = await fetch(`/api/habits?id=${habitId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
 
-      showToast('🗑️ تم حذف العادة');
+      showToast('تم حذف العادة');
       await onRefresh();
     } catch {
       showToast('تعذر حذف العادة', 'error');
@@ -149,9 +151,13 @@ export default function HabitsSection({ month, habits, onRefresh, showToast }: P
 
       <div className="panel">
         <div className="panel-header">
-          <h3>إدارة العادات</h3>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowAddHabit((open) => !open)}>
-            {showAddHabit ? 'إلغاء' : '+ إضافة عادة'}
+          <h3 className="title-with-icon">
+            <AppIcon name="habits" size={18} />
+            <span>إدارة العادات</span>
+          </h3>
+          <button className="btn btn-primary btn-sm btn-with-icon" onClick={() => setShowAddHabit((open) => !open)}>
+            <AppIcon name={showAddHabit ? 'close' : 'plus'} size={14} />
+            <span>{showAddHabit ? 'إلغاء' : 'إضافة عادة'}</span>
           </button>
         </div>
 
@@ -170,13 +176,17 @@ export default function HabitsSection({ month, habits, onRefresh, showToast }: P
               </div>
               <div className="form-group">
                 <label>الأيقونة</label>
-                <input
+                <select
                   className="form-control"
                   value={icon}
                   onChange={(e) => setIcon(e.target.value)}
-                  placeholder="📚"
-                  maxLength={2}
-                />
+                >
+                  {HABIT_ICON_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="form-group">
                 <label>اللون</label>
@@ -199,7 +209,10 @@ export default function HabitsSection({ month, habits, onRefresh, showToast }: P
                 />
               </div>
               <div className="form-group habit-form-actions">
-                <button className="btn btn-primary" onClick={addHabit}>💾 حفظ العادة</button>
+                <button className="btn btn-primary btn-with-icon" onClick={addHabit}>
+                  <AppIcon name="save" size={16} />
+                  <span>حفظ العادة</span>
+                </button>
               </div>
             </div>
           </div>
@@ -208,7 +221,7 @@ export default function HabitsSection({ month, habits, onRefresh, showToast }: P
         <div className="panel-body">
           {habits.length === 0 ? (
             <div className="empty-state">
-              <div className="icon">✅</div>
+              <div className="icon"><AppIcon name="habits" size={28} /></div>
               <p>لا توجد عادات بعد. أضف عاداتك ثم ابدأ التتبع اليومي والإحصائيات الأسبوعية.</p>
             </div>
           ) : (
@@ -254,14 +267,16 @@ export default function HabitsSection({ month, habits, onRefresh, showToast }: P
                       <div className="habit-name-cell sticky">
                         <div className="habit-name-main">
                           <span className="habit-badge" style={{ background: `${colorValue}20`, color: colorValue }}>
-                            {habit.icon || '✨'}
+                            <AppIcon name={normalizeIconName(habit.icon, 'sparkles')} size={18} />
                           </span>
                           <div className="habit-name-meta">
                             <strong>{habit.name}</strong>
                             <span>{habitRate ? `${habitRate.rate}%` : '0%'}</span>
                           </div>
                         </div>
-                        <button className="btn btn-danger btn-sm" onClick={() => deleteHabit(habit.id)}>🗑️</button>
+                        <button className="btn btn-danger btn-sm" onClick={() => deleteHabit(habit.id)}>
+                          <AppIcon name="trash" size={14} />
+                        </button>
                       </div>
 
                       {summary.dailyStats.map((day) => {
@@ -339,7 +354,7 @@ export default function HabitsSection({ month, habits, onRefresh, showToast }: P
         <div className="panel-body">
           {habits.length === 0 ? (
             <div className="empty-state">
-              <div className="icon">📈</div>
+              <div className="icon"><AppIcon name="chart" size={28} /></div>
               <p>ستظهر هنا الإحصائيات الأسبوعية والشهرية بمجرد بدء تسجيل العادات.</p>
             </div>
           ) : (

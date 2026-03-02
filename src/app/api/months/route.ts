@@ -1,22 +1,27 @@
 import { NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { getDB, initDB } from '@/lib/db';
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = await requireUser(req);
+  if ('response' in auth) return auth.response;
+
   try {
     await initDB();
     const sql = getDB();
-    const salaries  = await sql`SELECT * FROM salaries ORDER BY month DESC`;
-    const planned   = await sql`SELECT * FROM planned_expenses ORDER BY month DESC, created_at ASC`;
-    const actual    = await sql`SELECT * FROM actual_expenses ORDER BY month DESC, date DESC`;
-    const habits    = await sql`SELECT * FROM habits ORDER BY month DESC, created_at ASC`;
-    const habitEntries = await sql`SELECT * FROM habit_entries ORDER BY month DESC, date ASC, created_at ASC`;
+    const salaries  = await sql`SELECT * FROM salaries WHERE user_id = ${auth.user.id} ORDER BY month DESC`;
+    const planned   = await sql`SELECT * FROM planned_expenses WHERE user_id = ${auth.user.id} ORDER BY month DESC, created_at ASC`;
+    const actual    = await sql`SELECT * FROM actual_expenses WHERE user_id = ${auth.user.id} ORDER BY month DESC, date DESC`;
+    const habits    = await sql`SELECT * FROM habits WHERE user_id = ${auth.user.id} ORDER BY month DESC, created_at ASC`;
+    const habitEntries = await sql`SELECT * FROM habit_entries WHERE user_id = ${auth.user.id} ORDER BY month DESC, date ASC, created_at ASC`;
     const sources   = await sql`
       SELECT s.*, COALESCE(SUM(p.amount),0) AS paid_total
       FROM income_sources s
       LEFT JOIN income_payments p ON p.source_id = s.id
+      WHERE s.user_id = ${auth.user.id}
       GROUP BY s.id ORDER BY s.month DESC, s.created_at ASC
     `;
-    const payments  = await sql`SELECT * FROM income_payments ORDER BY month DESC, date DESC`;
+    const payments  = await sql`SELECT * FROM income_payments WHERE user_id = ${auth.user.id} ORDER BY month DESC, date DESC`;
 
     const months: Record<string, {
       salary: object | null;

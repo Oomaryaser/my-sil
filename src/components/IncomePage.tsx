@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import AppIcon from '@/components/AppIcon';
+import { AppIconName } from '@/lib/icons';
 import { IncomeSource, IncomePayment, IncomeType, INCOME_TYPE_LABEL, INCOME_TYPE_COLOR, formatNum, formatDate } from '@/lib/types';
 
 interface Props {
@@ -27,6 +29,11 @@ export default function IncomePage({ month, sources, onRefresh, showToast }: Pro
 
   const totalExpected = sources.reduce((s, src) => s + Number(src.expected_amount), 0);
   const totalPaid = sources.reduce((s, src) => s + Number(src.paid_total ?? 0), 0);
+  const incomeTypeIcons: Record<IncomeType, AppIconName> = {
+    salary: 'wallet',
+    freelance: 'tools',
+    side: 'coins',
+  };
 
   const addSource = async () => {
     if (!srcName.trim() || !srcExpected) { showToast('أدخل الاسم والمبلغ', 'error'); return; }
@@ -44,13 +51,13 @@ export default function IncomePage({ month, sources, onRefresh, showToast }: Pro
     });
     if (!res.ok) { showToast('خطأ في الحفظ', 'error'); return; }
     setSrcName(''); setSrcExpected(''); setSrcNotes(''); setShowAddSource(false);
-    showToast('✅ تم إضافة المصدر');
+    showToast('تم إضافة المصدر');
     onRefresh();
   };
 
   const deleteSource = async (id: string) => {
     await fetch(`/api/income?id=${id}`, { method: 'DELETE' });
-    showToast('🗑️ تم الحذف');
+    showToast('تم الحذف');
     onRefresh();
   };
 
@@ -70,13 +77,13 @@ export default function IncomePage({ month, sources, onRefresh, showToast }: Pro
     });
     if (!res.ok) { showToast('خطأ', 'error'); return; }
     setPayAmount(''); setPayNotes(''); setShowPaymentFor(null);
-    showToast('✅ تم تسجيل الدفعة');
+    showToast('تم تسجيل الدفعة');
     onRefresh();
   };
 
   const deletePayment = async (id: string) => {
     await fetch(`/api/income/payment?id=${id}`, { method: 'DELETE' });
-    showToast('🗑️ تم حذف الدفعة');
+    showToast('تم حذف الدفعة');
     onRefresh();
   };
 
@@ -111,9 +118,13 @@ export default function IncomePage({ month, sources, onRefresh, showToast }: Pro
       {/* Sources list */}
       <div className="panel">
         <div className="panel-header">
-          <h3>مصادر الدخل</h3>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowAddSource(v => !v)}>
-            {showAddSource ? '✕ إلغاء' : '+ إضافة مصدر'}
+          <h3 className="title-with-icon">
+            <AppIcon name="income" size={18} />
+            <span>مصادر الدخل</span>
+          </h3>
+          <button className="btn btn-primary btn-sm btn-with-icon" onClick={() => setShowAddSource(v => !v)}>
+            <AppIcon name={showAddSource ? 'close' : 'plus'} size={14} />
+            <span>{showAddSource ? 'إلغاء' : 'إضافة مصدر'}</span>
           </button>
         </div>
 
@@ -128,9 +139,9 @@ export default function IncomePage({ month, sources, onRefresh, showToast }: Pro
               <div className="form-group">
                 <label>النوع</label>
                 <select className="form-control" value={srcType} onChange={e => setSrcType(e.target.value as IncomeType)}>
-                  <option value="salary">💵 راتب</option>
-                  <option value="freelance">💻 فريلانس</option>
-                  <option value="side">⚡ دخل جانبي</option>
+                  <option value="salary">راتب</option>
+                  <option value="freelance">فريلانس</option>
+                  <option value="side">دخل جانبي</option>
                 </select>
               </div>
             </div>
@@ -144,13 +155,16 @@ export default function IncomePage({ month, sources, onRefresh, showToast }: Pro
                 <input className="form-control" value={srcNotes} onChange={e => setSrcNotes(e.target.value)} placeholder="اختياري" />
               </div>
             </div>
-            <button className="btn btn-primary" onClick={addSource}>💾 حفظ المصدر</button>
+            <button className="btn btn-primary btn-with-icon" onClick={addSource}>
+              <AppIcon name="save" size={16} />
+              <span>حفظ المصدر</span>
+            </button>
           </div>
         )}
 
         <div className="panel-body">
           {sources.length === 0 ? (
-            <div className="empty-state"><div className="icon">💰</div><p>لا توجد مصادر دخل — أضف واحداً!</p></div>
+            <div className="empty-state"><div className="icon"><AppIcon name="wallet" size={28} /></div><p>لا توجد مصادر دخل — أضف واحداً!</p></div>
           ) : sources.map(src => {
             const paid = Number(src.paid_total ?? 0);
             const expected = Number(src.expected_amount);
@@ -163,6 +177,7 @@ export default function IncomePage({ month, sources, onRefresh, showToast }: Pro
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <AppIcon name={incomeTypeIcons[src.type as IncomeType]} size={16} />
                       <span style={{ fontSize: 13, fontWeight: 700, color: INCOME_TYPE_COLOR[src.type as IncomeType] }}>
                         {INCOME_TYPE_LABEL[src.type as IncomeType]}
                       </span>
@@ -170,7 +185,9 @@ export default function IncomePage({ month, sources, onRefresh, showToast }: Pro
                     </div>
                     {src.notes && <div style={{ fontSize: 12, color: 'var(--muted)' }}>{src.notes}</div>}
                   </div>
-                  <button className="btn btn-danger btn-sm" onClick={() => deleteSource(src.id)}>🗑️</button>
+                  <button className="btn btn-danger btn-sm" onClick={() => deleteSource(src.id)}>
+                    <AppIcon name="trash" size={14} />
+                  </button>
                 </div>
 
                 {/* Amounts row */}
@@ -206,7 +223,9 @@ export default function IncomePage({ month, sources, onRefresh, showToast }: Pro
                           {p.date && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(p.date)}</span>}
                           {p.notes && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.notes}</span>}
                         </div>
-                        <button className="btn btn-danger btn-sm" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => deletePayment(p.id)}>✕</button>
+                        <button className="btn btn-danger btn-sm" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => deletePayment(p.id)}>
+                          <AppIcon name="trash" size={12} />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -230,13 +249,20 @@ export default function IncomePage({ month, sources, onRefresh, showToast }: Pro
                       <input className="form-control" value={payNotes} onChange={e => setPayNotes(e.target.value)} placeholder="اختياري" />
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="btn btn-primary btn-sm" onClick={() => addPayment(src.id)}>✅ تسجيل</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => setShowPaymentFor(null)}>إلغاء</button>
+                      <button className="btn btn-primary btn-sm btn-with-icon" onClick={() => addPayment(src.id)}>
+                        <AppIcon name="save" size={14} />
+                        <span>تسجيل</span>
+                      </button>
+                      <button className="btn btn-ghost btn-sm btn-with-icon" onClick={() => setShowPaymentFor(null)}>
+                        <AppIcon name="close" size={14} />
+                        <span>إلغاء</span>
+                      </button>
                     </div>
                   </div>
                 ) : (
-                  <button className="btn btn-ghost btn-sm" style={{ fontSize: 12 }} onClick={() => { setShowPaymentFor(src.id); setPayAmount(''); setPayNotes(''); setPayDate(new Date().toISOString().slice(0,10)); }}>
-                    + تسجيل دفعة مستلمة
+                  <button className="btn btn-ghost btn-sm btn-with-icon" style={{ fontSize: 12 }} onClick={() => { setShowPaymentFor(src.id); setPayAmount(''); setPayNotes(''); setPayDate(new Date().toISOString().slice(0,10)); }}>
+                    <AppIcon name="plus" size={14} />
+                    <span>تسجيل دفعة مستلمة</span>
                   </button>
                 )}
               </div>

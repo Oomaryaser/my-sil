@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { getDB } from '@/lib/db';
 
 // POST { fromMonth, toMonth } — copies planned_expenses from one month to another
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if ('response' in auth) return auth.response;
+
   try {
     const { fromMonth, toMonth } = await req.json();
     if (!fromMonth || !toMonth) {
@@ -13,7 +17,9 @@ export async function POST(req: Request) {
 
     // Fetch source expenses
     const rows = await sql`
-      SELECT name, amount, category, notes FROM planned_expenses WHERE month = ${fromMonth}
+      SELECT name, amount, category, notes
+      FROM planned_expenses
+      WHERE user_id = ${auth.user.id} AND month = ${fromMonth}
     `;
 
     if (rows.length === 0) {
@@ -25,8 +31,8 @@ export async function POST(req: Request) {
     for (const row of rows) {
       const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
       await sql`
-        INSERT INTO planned_expenses (id, month, name, amount, category, notes)
-        VALUES (${id}, ${toMonth}, ${row.name}, ${row.amount}, ${row.category}, ${row.notes || ''})
+        INSERT INTO planned_expenses (id, user_id, month, name, amount, category, notes)
+        VALUES (${id}, ${auth.user.id}, ${toMonth}, ${row.name}, ${row.amount}, ${row.category}, ${row.notes || ''})
         ON CONFLICT DO NOTHING
       `;
       copied++;

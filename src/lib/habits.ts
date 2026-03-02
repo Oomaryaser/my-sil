@@ -1,4 +1,5 @@
 import { Habit } from '@/lib/types';
+import { normalizeIconName } from '@/lib/icons';
 
 export interface HabitDailyStat {
   date: string;
@@ -170,7 +171,7 @@ export function buildHabitSummary(month: string, habits: Habit[], today = new Da
       return {
         habitId: habit.id,
         name: habit.name,
-        icon: habit.icon || '✨',
+        icon: normalizeIconName(habit.icon, 'sparkles'),
         color: getHabitColor(index, habit.color),
         completed,
         total,

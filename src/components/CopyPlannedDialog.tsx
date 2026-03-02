@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import AppIcon from '@/components/AppIcon';
 import { Expense, CAT_ICONS, CAT_NAMES, formatNum, getMonthName } from '@/lib/types';
 
 interface Props {
@@ -38,7 +39,10 @@ export default function CopyPlannedDialog({ fromMonth, toMonth, expenses, onConf
         {/* Header */}
         <div className="modal-header">
           <div>
-            <h3>📋 مصاريف شهر {getMonthName(toMonth)}</h3>
+            <h3 className="title-with-icon">
+              <AppIcon name="copy" size={18} />
+              <span>مصاريف شهر {getMonthName(toMonth)}</span>
+            </h3>
             <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
               نسخ من {getMonthName(fromMonth)} — راجع وعدّل قبل التأكيد
             </p>
@@ -49,7 +53,7 @@ export default function CopyPlannedDialog({ fromMonth, toMonth, expenses, onConf
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 4px' }}>
           {items.length === 0 ? (
             <div className="empty-state" style={{ padding: '30px 0' }}>
-              <div className="icon">📋</div>
+              <div className="icon"><AppIcon name="planned" size={28} /></div>
               <p>حذفت كل البنود — سيبدأ الشهر بلا مصاريف متوقعة</p>
             </div>
           ) : items.map(e => (
@@ -59,7 +63,7 @@ export default function CopyPlannedDialog({ fromMonth, toMonth, expenses, onConf
             }}>
               {/* Icon */}
               <div className={`expense-icon cat-${e.category}`} style={{ flexShrink: 0 }}>
-                {CAT_ICONS[e.category] || '📦'}
+                <AppIcon name={CAT_ICONS[e.category] || 'other'} size={18} />
               </div>
 
               {/* Name + category */}
@@ -85,7 +89,9 @@ export default function CopyPlannedDialog({ fromMonth, toMonth, expenses, onConf
                 className="btn btn-danger btn-sm"
                 onClick={() => removeItem(e.id)}
                 style={{ flexShrink: 0 }}
-              >✕</button>
+              >
+                <AppIcon name="trash" size={14} />
+              </button>
             </div>
           ))}
         </div>
@@ -105,15 +111,17 @@ export default function CopyPlannedDialog({ fromMonth, toMonth, expenses, onConf
         {/* Actions */}
         <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary btn-with-icon"
             style={{ flex: 1 }}
             onClick={handleConfirm}
             disabled={loading}
           >
-            {loading ? '⏳ جارٍ الحفظ…' : `✅ تأكيد (${items.length} بند)`}
+            <AppIcon name={loading ? 'clock' : 'copy'} size={16} />
+            <span>{loading ? 'جارٍ الحفظ…' : `تأكيد (${items.length} بند)`}</span>
           </button>
-          <button className="btn btn-ghost" onClick={onSkip} disabled={loading}>
-            تخطّي
+          <button className="btn btn-ghost btn-with-icon" onClick={onSkip} disabled={loading}>
+            <AppIcon name="close" size={16} />
+            <span>تخطّي</span>
           </button>
         </div>
       </div>
