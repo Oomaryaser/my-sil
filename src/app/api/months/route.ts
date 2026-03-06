@@ -9,19 +9,58 @@ export async function GET(req: Request) {
   try {
     await initDB();
     const sql = getDB();
-    const salaries  = await sql`SELECT * FROM salaries WHERE user_id = ${auth.user.id} ORDER BY month DESC`;
-    const planned   = await sql`SELECT * FROM planned_expenses WHERE user_id = ${auth.user.id} ORDER BY month DESC, created_at ASC`;
-    const actual    = await sql`SELECT * FROM actual_expenses WHERE user_id = ${auth.user.id} ORDER BY month DESC, date DESC`;
-    const habits    = await sql`SELECT * FROM habits WHERE user_id = ${auth.user.id} ORDER BY month DESC, created_at ASC`;
-    const habitEntries = await sql`SELECT * FROM habit_entries WHERE user_id = ${auth.user.id} ORDER BY month DESC, date ASC, created_at ASC`;
-    const sources   = await sql`
-      SELECT s.*, COALESCE(SUM(p.amount),0) AS paid_total
-      FROM income_sources s
-      LEFT JOIN income_payments p ON p.source_id = s.id
-      WHERE s.user_id = ${auth.user.id}
-      GROUP BY s.id ORDER BY s.month DESC, s.created_at ASC
+
+    const salaries = await sql`
+      SELECT *
+      FROM salaries
+      WHERE user_id = ${auth.user.id}
+      ORDER BY month DESC
     `;
-    const payments  = await sql`SELECT * FROM income_payments WHERE user_id = ${auth.user.id} ORDER BY month DESC, date DESC`;
+
+    const planned = await sql`
+      SELECT *
+      FROM planned_expenses
+      WHERE user_id = ${auth.user.id}
+      ORDER BY month DESC, created_at ASC
+    `;
+
+    const actual = await sql`
+      SELECT *
+      FROM actual_expenses
+      WHERE user_id = ${auth.user.id}
+      ORDER BY month DESC, date DESC, created_at DESC
+    `;
+
+    const sources = await sql`
+      SELECT s.*, COALESCE(SUM(p.amount), 0) AS paid_total
+      FROM income_sources s
+      LEFT JOIN income_payments p
+        ON p.source_id = s.id AND p.user_id = s.user_id
+      WHERE s.user_id = ${auth.user.id}
+      GROUP BY s.id
+      ORDER BY s.month DESC, s.created_at ASC
+    `;
+
+    const payments = await sql`
+      SELECT *
+      FROM income_payments
+      WHERE user_id = ${auth.user.id}
+      ORDER BY month DESC, date DESC, created_at DESC
+    `;
+
+    const habits = await sql`
+      SELECT *
+      FROM habits
+      WHERE user_id = ${auth.user.id}
+      ORDER BY month DESC, created_at ASC
+    `;
+
+    const habitEntries = await sql`
+      SELECT *
+      FROM habit_entries
+      WHERE user_id = ${auth.user.id}
+      ORDER BY month DESC, date ASC, created_at ASC
+    `;
 
     const months: Record<string, {
       salary: object | null;
@@ -31,37 +70,51 @@ export async function GET(req: Request) {
       habits: object[];
     }> = {};
 
-    const ensure = (m: string) => {
-      if (!months[m]) months[m] = { salary: null, planned: [], actual: [], income_sources: [], habits: [] };
+    const ensure = (month: string) => {
+      if (!months[month]) {
+        months[month] = {
+          salary: null,
+          planned: [],
+          actual: [],
+          income_sources: [],
+          habits: [],
+        };
+      }
     };
 
-    const entriesByHabit = new Map<string, object[]>();
-    for (const entry of habitEntries) {
-      const list = entriesByHabit.get(entry.habit_id) || [];
-      list.push(entry);
-      entriesByHabit.set(entry.habit_id, list);
+    for (const salary of salaries) {
+      ensure(salary.month);
+      months[salary.month].salary = salary;
     }
 
-    for (const s of salaries)  { ensure(s.month); months[s.month].salary = s; }
-    for (const p of planned)   { ensure(p.month); months[p.month].planned.push(p); }
-    for (const a of actual)    { ensure(a.month); months[a.month].actual.push(a); }
-    for (const h of habits) {
-      ensure(h.month);
-      (months[h.month].habits as object[]).push({
-        ...h,
-        entries: entriesByHabit.get(h.id) || [],
+    for (const expense of planned) {
+      ensure(expense.month);
+      months[expense.month].planned.push(expense);
+    }
+
+    for (const expense of actual) {
+      ensure(expense.month);
+      months[expense.month].actual.push(expense);
+    }
+
+    for (const source of sources) {
+      ensure(source.month);
+      months[source.month].income_sources.push({
+        ...source,
+        payments: payments.filter((payment: Record<string, unknown>) => payment.source_id === source.id),
       });
     }
-    for (const s of sources) {
-      ensure(s.month);
-      (months[s.month].income_sources as object[]).push({
-        ...s,
-        payments: payments.filter((p: Record<string,unknown>) => p.source_id === s.id),
+
+    for (const habit of habits) {
+      ensure(habit.month);
+      months[habit.month].habits.push({
+        ...habit,
+        entries: habitEntries.filter((entry: Record<string, unknown>) => entry.habit_id === habit.id),
       });
     }
 
     return NextResponse.json(months);
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }

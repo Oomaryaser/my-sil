@@ -18,12 +18,22 @@ export async function GET(req: Request) {
     }
 
     const rows = type === 'planned'
-      ? await sql`SELECT * FROM planned_expenses WHERE user_id = ${auth.user.id} AND month = ${month} ORDER BY created_at ASC`
-      : await sql`SELECT * FROM actual_expenses WHERE user_id = ${auth.user.id} AND month = ${month} ORDER BY date DESC, created_at DESC`;
+      ? await sql`
+          SELECT *
+          FROM planned_expenses
+          WHERE user_id = ${auth.user.id} AND month = ${month}
+          ORDER BY created_at ASC
+        `
+      : await sql`
+          SELECT *
+          FROM actual_expenses
+          WHERE user_id = ${auth.user.id} AND month = ${month}
+          ORDER BY date DESC, created_at DESC
+        `;
 
     return NextResponse.json(rows);
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
 
@@ -34,23 +44,37 @@ export async function POST(req: Request) {
   try {
     await initDB();
     const sql = getDB();
-    const { type, id, month, name, amount, category, notes, date } = await req.json();
+    const body = await req.json();
+    const type = typeof body.type === 'string' ? body.type : '';
+    const id = typeof body.id === 'string' ? body.id : '';
+    const month = typeof body.month === 'string' ? body.month : '';
+    const name = typeof body.name === 'string' ? body.name : '';
+    const amount = Number(body.amount || 0);
+    const category = typeof body.category === 'string' ? body.category : 'other';
+    const notes = typeof body.notes === 'string' ? body.notes : '';
+    const date = typeof body.date === 'string' ? body.date : null;
+
+    if (!id || !month || !name || amount <= 0) {
+      return NextResponse.json({ error: 'بيانات المصروف غير مكتملة' }, { status: 400 });
+    }
 
     if (type === 'planned') {
       await sql`
         INSERT INTO planned_expenses (id, user_id, month, name, amount, category, notes)
-        VALUES (${id}, ${auth.user.id}, ${month}, ${name}, ${amount}, ${category}, ${notes || ''})
+        VALUES (${id}, ${auth.user.id}, ${month}, ${name}, ${amount}, ${category}, ${notes})
       `;
-    } else {
+    } else if (type === 'actual') {
       await sql`
         INSERT INTO actual_expenses (id, user_id, month, name, amount, category, notes, date)
-        VALUES (${id}, ${auth.user.id}, ${month}, ${name}, ${amount}, ${category}, ${notes || ''}, ${date || null})
+        VALUES (${id}, ${auth.user.id}, ${month}, ${name}, ${amount}, ${category}, ${notes}, ${date})
       `;
+    } else {
+      return NextResponse.json({ error: 'type غير صالح' }, { status: 400 });
     }
 
     return NextResponse.json({ ok: true });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
 
@@ -65,16 +89,20 @@ export async function DELETE(req: Request) {
     const id = searchParams.get('id');
     const type = searchParams.get('type');
 
-    if (!id || !type) return NextResponse.json({ error: 'id and type required' }, { status: 400 });
+    if (!id || !type) {
+      return NextResponse.json({ error: 'id and type required' }, { status: 400 });
+    }
 
     if (type === 'planned') {
       await sql`DELETE FROM planned_expenses WHERE id = ${id} AND user_id = ${auth.user.id}`;
-    } else {
+    } else if (type === 'actual') {
       await sql`DELETE FROM actual_expenses WHERE id = ${id} AND user_id = ${auth.user.id}`;
+    } else {
+      return NextResponse.json({ error: 'type غير صالح' }, { status: 400 });
     }
 
     return NextResponse.json({ ok: true });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }

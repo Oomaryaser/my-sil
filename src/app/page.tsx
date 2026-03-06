@@ -9,6 +9,7 @@ import ExpenseModal from '@/components/ExpenseModal';
 import HabitsSection from '@/components/HabitsSection';
 import IncomePage from '@/components/IncomePage';
 import RequestsBoard from '@/components/RequestsBoard';
+import TodoBoard from '@/components/TodoBoard';
 import Toast from '@/components/Toast';
 import { buildHabitSummary } from '@/lib/habits';
 import { AppIconName, normalizeIconName } from '@/lib/icons';
@@ -23,6 +24,7 @@ import {
   Habit,
   IncomeSource,
   Salary,
+  TodoItem,
   formatDate,
   formatNum,
   getDayName,
@@ -30,7 +32,7 @@ import {
   todayFormatted,
 } from '@/lib/types';
 
-type Page = 'dashboard' | 'income' | 'habits' | 'planned' | 'actual' | 'history' | 'telegram' | 'requests' | 'admin';
+type Page = 'dashboard' | 'income' | 'todo' | 'habits' | 'planned' | 'actual' | 'history' | 'telegram' | 'requests' | 'admin';
 
 interface MonthData {
   salary: Salary | null;
@@ -43,6 +45,7 @@ interface MonthData {
 interface AuthPayload {
   authenticated: boolean;
   user: AppUser | null;
+  showTodoAnnouncement?: boolean;
 }
 
 function isSubscriptionActive(status: string, expiresAt: string) {
@@ -63,6 +66,8 @@ export default function Home() {
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [adminRequests, setAdminRequests] = useState<FeatureRequest[]>([]);
   const [adminLoading, setAdminLoading] = useState(false);
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [todoLoading, setTodoLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState<ExpenseType>('planned');
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' as 'success' | 'error' });
@@ -95,12 +100,15 @@ export default function Home() {
       const res = await fetch('/api/auth');
       const data = await res.json() as AuthPayload;
       setUser(data.authenticated ? data.user : null);
+      if (data.authenticated && data.showTodoAnnouncement) {
+        showToast('تم اضافة خاصية جديدة وهي todo');
+      }
     } catch {
       setUser(null);
     } finally {
       setSessionLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   const loadAll = useCallback(async () => {
     if (!canUseProduct) {
@@ -198,6 +206,36 @@ export default function Home() {
     }
   }, [getErrorMessage, isAdmin, showToast]);
 
+  const loadTodos = useCallback(async () => {
+    if (!canUseProduct) {
+      setTodos([]);
+      return;
+    }
+
+    setTodoLoading(true);
+    try {
+      const res = await fetch('/api/todos');
+      if (res.status === 401) {
+        setUser(null);
+        setTodos([]);
+        return;
+      }
+      if (res.status === 403) {
+        setTodos([]);
+        return;
+      }
+      if (!res.ok) {
+        throw new Error(await getErrorMessage(res, 'تعذر تحميل المهام'));
+      }
+      const data = await res.json() as TodoItem[];
+      setTodos(data);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'تعذر تحميل المهام', 'error');
+    } finally {
+      setTodoLoading(false);
+    }
+  }, [canUseProduct, getErrorMessage, showToast]);
+
   useEffect(() => {
     loadSession();
   }, [loadSession]);
@@ -210,6 +248,7 @@ export default function Home() {
       setAdminUsers([]);
       setAdminRequests([]);
       setMonths({});
+      setTodos([]);
     }
   }, [loadFeatureRequests, user]);
 
@@ -220,6 +259,14 @@ export default function Home() {
       setMonths({});
     }
   }, [canUseProduct, loadAll]);
+
+  useEffect(() => {
+    if (canUseProduct) {
+      loadTodos();
+    } else {
+      setTodos([]);
+    }
+  }, [canUseProduct, loadTodos]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -264,10 +311,14 @@ export default function Home() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  const handleAuthenticated = useCallback((nextUser: AppUser) => {
+  const handleAuthenticated = useCallback((payload: { user: AppUser; showTodoAnnouncement?: boolean }) => {
+    const nextUser = payload.user;
     setUser(nextUser);
     setPage(nextUser.role === 'admin' ? 'admin' : nextUser.isSubscriptionActive ? 'dashboard' : 'requests');
-  }, []);
+    if (payload.showTodoAnnouncement) {
+      showToast('تم اضافة خاصية جديدة وهي todo');
+    }
+  }, [showToast]);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -278,6 +329,7 @@ export default function Home() {
       setFeatureRequests([]);
       setAdminUsers([]);
       setAdminRequests([]);
+      setTodos([]);
       setPage('dashboard');
       setSidebarOpen(false);
       showToast('تم تسجيل الخروج');
@@ -435,6 +487,7 @@ export default function Home() {
   const productNavItems: Array<{ id: Page; icon: AppIconName; label: string }> = [
     { id: 'dashboard', icon: 'dashboard', label: 'لوحة التحكم' },
     { id: 'income', icon: 'income', label: 'الدخل' },
+    { id: 'todo', icon: 'todo', label: 'المهام' },
     { id: 'habits', icon: 'habits', label: 'العادات' },
     { id: 'planned', icon: 'planned', label: 'المصاريف المتوقعة' },
     { id: 'actual', icon: 'receipt', label: 'المصاريف الفعلية' },
@@ -724,6 +777,19 @@ export default function Home() {
                 month={currentMonth}
                 sources={incomeSources}
                 onRefresh={loadAll}
+                showToast={showToast}
+              />
+            </div>
+
+            <div className={`page${page === 'todo' ? ' active fade-in' : ''}`}>
+              <div className="page-header">
+                <h2 className="title-with-icon"><AppIcon name="todo" size={22} /><span>المهام اليومية</span></h2>
+                <p>تابع مهامك اليومية وأنجزها خطوة بخطوة</p>
+              </div>
+              <TodoBoard
+                todos={todos}
+                loading={todoLoading}
+                onRefresh={loadTodos}
                 showToast={showToast}
               />
             </div>

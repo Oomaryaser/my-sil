@@ -9,10 +9,15 @@ export async function GET(req: Request) {
   try {
     await initDB();
     const sql = getDB();
-    const rows = await sql`SELECT * FROM salaries WHERE user_id = ${auth.user.id} ORDER BY month DESC`;
+    const rows = await sql`
+      SELECT *
+      FROM salaries
+      WHERE user_id = ${auth.user.id}
+      ORDER BY month DESC
+    `;
     return NextResponse.json(rows);
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
 
@@ -23,19 +28,32 @@ export async function POST(req: Request) {
   try {
     await initDB();
     const sql = getDB();
-    const { month, base, allowances, deductions, total, notes } = await req.json();
+    const body = await req.json();
+    const month = typeof body.month === 'string' ? body.month : '';
+    const base = Number(body.base || 0);
+    const allowances = Number(body.allowances || 0);
+    const deductions = Number(body.deductions || 0);
+    const total = Number(body.total || 0);
+    const notes = typeof body.notes === 'string' ? body.notes : '';
+
+    if (!month) {
+      return NextResponse.json({ error: 'month required' }, { status: 400 });
+    }
+
     await sql`
       INSERT INTO salaries (user_id, month, base, allowances, deductions, total, notes)
       VALUES (${auth.user.id}, ${month}, ${base}, ${allowances}, ${deductions}, ${total}, ${notes})
-      ON CONFLICT (user_id, month) DO UPDATE SET
+      ON CONFLICT (user_id, month)
+      DO UPDATE SET
         base = EXCLUDED.base,
         allowances = EXCLUDED.allowances,
         deductions = EXCLUDED.deductions,
         total = EXCLUDED.total,
         notes = EXCLUDED.notes
     `;
+
     return NextResponse.json({ ok: true });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }

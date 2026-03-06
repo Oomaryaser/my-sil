@@ -5,6 +5,7 @@ export type AppIconName =
   | 'moon'
   | 'dashboard'
   | 'income'
+  | 'todo'
   | 'habits'
   | 'planned'
   | 'receipt'
@@ -58,6 +59,7 @@ export const APP_ICON_NAMES: Record<AppIconName, AppIconName> = {
   moon: 'moon',
   dashboard: 'dashboard',
   income: 'income',
+  todo: 'todo',
   habits: 'habits',
   planned: 'planned',
   receipt: 'receipt',

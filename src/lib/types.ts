@@ -1,3 +1,5 @@
+import type { AppIconName } from '@/lib/icons';
+
 export interface Salary {
   id?: number;
   month: string;
@@ -85,6 +87,7 @@ export interface AppUser {
   subscription_expires_at: string;
   created_at: string;
   isSubscriptionActive: boolean;
+  todo_announcement_seen?: boolean;
 }
 
 export interface FeatureRequest {
@@ -106,6 +109,17 @@ export interface AdminUser extends AppUser {
   actual_expenses_count?: number;
   income_sources_count?: number;
   habits_count?: number;
+}
+
+export interface TodoItem {
+  id: string;
+  user_id: string;
+  title: string;
+  notes?: string;
+  due_date?: string | null;
+  completed: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export const CAT_ICONS: Record<string, AppIconName> = {
@@ -169,4 +183,3 @@ export function getDayName(dateStr: string): string {
   const d = new Date(y, m - 1, day);
   return DAYS_AR[d.getDay()];
 }
-import type { AppIconName } from '@/lib/icons';

@@ -18,6 +18,7 @@ function IconPath({ name }: { name: AppIconName }) {
     moon: <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4 7 7 0 0 0 20 14.5Z" />,
     dashboard: <><rect x="3" y="3" width="8" height="8" rx="1.5" /><rect x="13" y="3" width="8" height="5" rx="1.5" /><rect x="13" y="10" width="8" height="11" rx="1.5" /><rect x="3" y="13" width="8" height="8" rx="1.5" /></>,
     income: <><path d="M4 7h16v10H4z" /><path d="M4 10h16" /><path d="M9 15h6" /></>,
+    todo: <><rect x="5" y="4" width="14" height="16" rx="2" /><path d="M9 3h6" /><path d="m8 10 1.8 1.8L13 8.6" /><path d="m8 15 1.8 1.8L13 13.6" /></>,
     habits: <><rect x="4" y="3" width="16" height="18" rx="2" /><path d="m8 12 2.5 2.5L16 9" /></>,
     planned: <><path d="M8 3h8" /><path d="M9 3v3" /><path d="M15 3v3" /><rect x="5" y="5" width="14" height="16" rx="2" /><path d="M8 11h8" /><path d="M8 15h8" /></>,
     receipt: <><path d="M7 3h10v18l-2-1.5L12 21l-3-1.5L7 21Z" /><path d="M9 8h6" /><path d="M9 12h6" /><path d="M9 16h4" /></>,

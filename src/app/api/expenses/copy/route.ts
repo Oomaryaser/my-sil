@@ -1,45 +1,44 @@
+import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
-import { getDB } from '@/lib/db';
+import { getDB, initDB } from '@/lib/db';
 
-// POST { fromMonth, toMonth } — copies planned_expenses from one month to another
 export async function POST(req: Request) {
   const auth = await requireUser(req);
   if ('response' in auth) return auth.response;
 
   try {
-    const { fromMonth, toMonth } = await req.json();
+    await initDB();
+    const sql = getDB();
+    const body = await req.json();
+    const fromMonth = typeof body.fromMonth === 'string' ? body.fromMonth : '';
+    const toMonth = typeof body.toMonth === 'string' ? body.toMonth : '';
+
     if (!fromMonth || !toMonth) {
       return NextResponse.json({ error: 'fromMonth and toMonth required' }, { status: 400 });
     }
 
-    const sql = getDB();
-
-    // Fetch source expenses
     const rows = await sql`
       SELECT name, amount, category, notes
       FROM planned_expenses
       WHERE user_id = ${auth.user.id} AND month = ${fromMonth}
     `;
 
-    if (rows.length === 0) {
+    if (!rows.length) {
       return NextResponse.json({ ok: true, copied: 0 });
     }
 
-    // Insert into target month (skip if already exists with same name+category)
     let copied = 0;
     for (const row of rows) {
-      const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
       await sql`
         INSERT INTO planned_expenses (id, user_id, month, name, amount, category, notes)
-        VALUES (${id}, ${auth.user.id}, ${toMonth}, ${row.name}, ${row.amount}, ${row.category}, ${row.notes || ''})
-        ON CONFLICT DO NOTHING
+        VALUES (${randomUUID()}, ${auth.user.id}, ${toMonth}, ${row.name}, ${row.amount}, ${row.category}, ${row.notes || ''})
       `;
-      copied++;
+      copied += 1;
     }
 
     return NextResponse.json({ ok: true, copied });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }

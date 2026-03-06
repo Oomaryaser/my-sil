@@ -2,161 +2,190 @@ import { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
 import { NextResponse } from 'next/server';
 import { clearSessionCookie, getSessionUser, normalizeUser, setSessionCookie } from '@/lib/auth';
-import { claimLegacyDataForUser, getDB, initDB } from '@/lib/db';
+import { getDB, initDB } from '@/lib/db';
 
-interface AuthUserRow {
+const OWNER_EMAIL = 'omar@ratbi.app';
+
+interface DBAuthRow {
   id: string;
   name: string;
   email: string;
+  password_hash: string;
   role: 'admin' | 'user';
   subscription_status: 'active' | 'suspended';
   subscription_started_at: string;
   subscription_expires_at: string;
   created_at: string;
+  todo_announcement_seen?: boolean;
 }
-
-const MIN_PASSWORD_LENGTH = 6;
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
-function isAdminEmail(email: string) {
-  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-  return Boolean(adminEmail) && adminEmail === normalizeEmail(email);
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-async function registerUser(body: Record<string, unknown>) {
-  const name = typeof body.name === 'string' ? body.name.trim() : '';
-  const email = typeof body.email === 'string' ? normalizeEmail(body.email) : '';
-  const password = typeof body.password === 'string' ? body.password : '';
-
-  if (name.length < 2) {
-    return NextResponse.json({ error: 'الاسم يجب أن يكون حرفين أو أكثر' }, { status: 400 });
-  }
-
-  if (!email.includes('@')) {
-    return NextResponse.json({ error: 'البريد الإلكتروني غير صالح' }, { status: 400 });
-  }
-
-  if (password.length < MIN_PASSWORD_LENGTH) {
-    return NextResponse.json({ error: 'كلمة المرور يجب أن تكون 6 أحرف أو أكثر' }, { status: 400 });
-  }
-
-  await initDB();
-  const sql = getDB();
-
-  const existing = await sql`SELECT id FROM users WHERE email = ${email} LIMIT 1`;
-  if (existing.length > 0) {
-    return NextResponse.json({ error: 'هذا البريد مسجل بالفعل' }, { status: 409 });
-  }
-
-  const countRows = await sql`SELECT COUNT(*)::int AS count FROM users`;
-  const isFirstUser = Number(countRows[0]?.count || 0) === 0;
-  const role = isFirstUser || isAdminEmail(email) ? 'admin' : 'user';
-  const userId = randomUUID();
-  const passwordHash = await bcrypt.hash(password, 10);
-
-  const rows = await sql`
-    INSERT INTO users (
-      id,
-      name,
-      email,
-      password_hash,
-      role,
-      subscription_status,
-      subscription_started_at,
-      subscription_expires_at,
-      updated_at
-    )
-    VALUES (
-      ${userId},
-      ${name},
-      ${email},
-      ${passwordHash},
-      ${role},
-      'active',
-      NOW(),
-      NOW() + INTERVAL '1 year',
-      NOW()
-    )
-    RETURNING id, name, email, role, subscription_status, subscription_started_at, subscription_expires_at, created_at
-  `;
-
-  if (isFirstUser) {
-    await claimLegacyDataForUser(userId);
-  }
-
-  const response = NextResponse.json({ ok: true, user: normalizeUser(rows[0] as AuthUserRow) });
-  setSessionCookie(response, userId);
-  return response;
-}
-
-async function loginUser(body: Record<string, unknown>) {
-  const email = typeof body.email === 'string' ? normalizeEmail(body.email) : '';
-  const password = typeof body.password === 'string' ? body.password : '';
-
-  if (!email || !password) {
-    return NextResponse.json({ error: 'البريد وكلمة المرور مطلوبان' }, { status: 400 });
-  }
-
-  await initDB();
+async function consumeTodoAnnouncement(userId: string) {
   const sql = getDB();
   const rows = await sql`
-    SELECT id, name, email, password_hash, role, subscription_status, subscription_started_at, subscription_expires_at, created_at
-    FROM users
-    WHERE email = ${email}
-    LIMIT 1
+    UPDATE users
+    SET todo_announcement_seen = TRUE, updated_at = NOW()
+    WHERE id = ${userId} AND todo_announcement_seen = FALSE
+    RETURNING id
   `;
-
-  if (!rows.length) {
-    return NextResponse.json({ error: 'الحساب غير موجود' }, { status: 404 });
-  }
-
-  const user = rows[0] as AuthUserRow & { password_hash: string };
-
-  const valid = await bcrypt.compare(password, user.password_hash);
-  if (!valid) {
-    return NextResponse.json({ error: 'كلمة المرور غير صحيحة' }, { status: 401 });
-  }
-
-  const response = NextResponse.json({
-    ok: true,
-    user: normalizeUser({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      subscription_status: user.subscription_status,
-      subscription_started_at: user.subscription_started_at,
-      subscription_expires_at: user.subscription_expires_at,
-      created_at: user.created_at,
-    }),
-  });
-  setSessionCookie(response, user.id);
-  return response;
-}
-
-export async function GET(req: Request) {
-  const user = await getSessionUser(req);
-  if (!user) {
-    return NextResponse.json({ authenticated: false, user: null });
-  }
-
-  return NextResponse.json({ authenticated: true, user });
+  return rows.length > 0;
 }
 
 export async function POST(req: Request) {
   try {
+    await initDB();
+    const sql = getDB();
     const body = await req.json();
+
     const action = typeof body.action === 'string' ? body.action : '';
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    const rawEmail = typeof body.email === 'string' ? body.email : '';
+    const email = normalizeEmail(rawEmail);
+    const password = typeof body.password === 'string' ? body.password : '';
 
-    if (action === 'register') return registerUser(body);
-    if (action === 'login') return loginUser(body);
+    if (action !== 'login' && action !== 'register') {
+      return NextResponse.json({ error: 'طلب غير صالح' }, { status: 400 });
+    }
 
-    return NextResponse.json({ error: 'الإجراء غير مدعوم' }, { status: 400 });
+    if (!isValidEmail(email)) {
+      return NextResponse.json({ error: 'البريد الإلكتروني غير صالح' }, { status: 400 });
+    }
+
+    if (password.length < 6) {
+      return NextResponse.json({ error: 'كلمة المرور يجب أن تكون 6 أحرف أو أكثر' }, { status: 400 });
+    }
+
+    if (action === 'register') {
+      if (name.length < 2) {
+        return NextResponse.json({ error: 'الاسم غير صالح' }, { status: 400 });
+      }
+
+      const exists = await sql`
+        SELECT id
+        FROM users
+        WHERE LOWER(email) = ${email}
+        LIMIT 1
+      `;
+
+      if (exists.length > 0) {
+        return NextResponse.json({ error: 'البريد مستخدم مسبقاً' }, { status: 409 });
+      }
+
+      const id = randomUUID();
+      const passwordHash = await bcrypt.hash(password, 10);
+      const now = new Date();
+      const expires = new Date(now);
+      expires.setFullYear(expires.getFullYear() + 1);
+      const role: 'admin' | 'user' = email === OWNER_EMAIL ? 'admin' : 'user';
+
+      const inserted = await sql`
+        INSERT INTO users (
+          id,
+          name,
+          email,
+          password_hash,
+          role,
+          subscription_status,
+          subscription_started_at,
+          subscription_expires_at
+        )
+        VALUES (
+          ${id},
+          ${name},
+          ${email},
+          ${passwordHash},
+          ${role},
+          'active',
+          ${now.toISOString()}::timestamp,
+          ${expires.toISOString()}::timestamp
+        )
+        RETURNING id, name, email, role, subscription_status, subscription_started_at, subscription_expires_at, created_at, todo_announcement_seen
+      `;
+
+      const user = normalizeUser(inserted[0] as DBAuthRow);
+      const showTodoAnnouncement = await consumeTodoAnnouncement(user.id);
+      const response = NextResponse.json({ user, showTodoAnnouncement });
+      setSessionCookie(response, user.id);
+      return response;
+    }
+
+    const rows = await sql`
+      SELECT id, name, email, password_hash, role, subscription_status, subscription_started_at, subscription_expires_at, created_at, todo_announcement_seen
+      FROM users
+      WHERE LOWER(email) = ${email}
+      LIMIT 1
+    `;
+
+    if (!rows.length) {
+      return NextResponse.json({ error: 'بيانات الدخول غير صحيحة' }, { status: 401 });
+    }
+
+    const dbUser = rows[0] as DBAuthRow;
+    const validPassword = await bcrypt.compare(password, dbUser.password_hash);
+    if (!validPassword) {
+      return NextResponse.json({ error: 'بيانات الدخول غير صحيحة' }, { status: 401 });
+    }
+
+    let finalRole = dbUser.role;
+    if (email === OWNER_EMAIL && dbUser.role !== 'admin') {
+      await sql`UPDATE users SET role = 'admin', updated_at = NOW() WHERE id = ${dbUser.id}`;
+      finalRole = 'admin';
+    }
+
+    const user = normalizeUser({
+      ...dbUser,
+      role: finalRole,
+    });
+    const showTodoAnnouncement = await consumeTodoAnnouncement(user.id);
+
+    const response = NextResponse.json({ user, showTodoAnnouncement });
+    setSessionCookie(response, user.id);
+    return response;
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
+  }
+}
+
+export async function GET(req: Request) {
+  try {
+    await initDB();
+    const sql = getDB();
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) {
+      return NextResponse.json({ authenticated: false, user: null, showTodoAnnouncement: false });
+    }
+
+    let role = sessionUser.role;
+    if (normalizeEmail(sessionUser.email) === OWNER_EMAIL && sessionUser.role !== 'admin') {
+      await sql`UPDATE users SET role = 'admin', updated_at = NOW() WHERE id = ${sessionUser.id}`;
+      role = 'admin';
+    }
+
+    const user = {
+      ...sessionUser,
+      role,
+      isSubscriptionActive:
+        role === 'admin'
+          ? true
+          : sessionUser.subscription_status === 'active' &&
+            new Date(sessionUser.subscription_expires_at).getTime() > Date.now(),
+    };
+    const showTodoAnnouncement = await consumeTodoAnnouncement(user.id);
+
+    return NextResponse.json({
+      authenticated: true,
+      user,
+      showTodoAnnouncement,
+    });
+  } catch (error) {
+    return NextResponse.json({ authenticated: false, user: null, error: String(error) }, { status: 500 });
   }
 }
 

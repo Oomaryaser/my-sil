@@ -7,7 +7,7 @@ import { AppUser } from '@/lib/types';
 interface Props {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
-  onAuthenticated: (user: AppUser) => void;
+  onAuthenticated: (payload: { user: AppUser; showTodoAnnouncement?: boolean }) => void;
   showToast: (message: string, type?: 'success' | 'error') => void;
 }
 
@@ -54,7 +54,10 @@ export default function AuthScreen({ theme, onToggleTheme, onAuthenticated, show
         return;
       }
 
-      onAuthenticated(data.user as AppUser);
+      onAuthenticated({
+        user: data.user as AppUser,
+        showTodoAnnouncement: Boolean(data.showTodoAnnouncement),
+      });
       showToast(isRegister ? 'تم إنشاء الحساب' : 'تم تسجيل الدخول');
     } catch {
       showToast('تعذر الاتصال بالخادم', 'error');
