@@ -88,6 +88,7 @@ export interface AppUser {
   created_at: string;
   isSubscriptionActive: boolean;
   todo_announcement_seen?: boolean;
+  has_groq_api_key?: boolean;
 }
 
 export interface FeatureRequest {

@@ -33,6 +33,8 @@ export type AppIconName =
   | 'trash'
   | 'close'
   | 'plus'
+  | 'mic'
+  | 'wave'
   | 'search'
   | 'note'
   | 'clock'
@@ -87,6 +89,8 @@ export const APP_ICON_NAMES: Record<AppIconName, AppIconName> = {
   trash: 'trash',
   close: 'close',
   plus: 'plus',
+  mic: 'mic',
+  wave: 'wave',
   search: 'search',
   note: 'note',
   clock: 'clock',

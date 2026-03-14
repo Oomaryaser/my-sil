@@ -11,6 +11,7 @@ import IncomePage from '@/components/IncomePage';
 import RequestsBoard from '@/components/RequestsBoard';
 import TodoBoard from '@/components/TodoBoard';
 import Toast from '@/components/Toast';
+import VoiceFinanceAssistant from '@/components/VoiceFinanceAssistant';
 import { buildHabitSummary } from '@/lib/habits';
 import { AppIconName, normalizeIconName } from '@/lib/icons';
 import {
@@ -68,6 +69,8 @@ export default function Home() {
   const [adminLoading, setAdminLoading] = useState(false);
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [todoLoading, setTodoLoading] = useState(false);
+  const [groqApiKeyInput, setGroqApiKeyInput] = useState('');
+  const [savingGroqKey, setSavingGroqKey] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState<ExpenseType>('planned');
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' as 'success' | 'error' });
@@ -253,6 +256,10 @@ export default function Home() {
   }, [loadFeatureRequests, user]);
 
   useEffect(() => {
+    setGroqApiKeyInput('');
+  }, [user?.id]);
+
+  useEffect(() => {
     if (canUseProduct) {
       loadAll();
     } else {
@@ -325,6 +332,7 @@ export default function Home() {
       await fetch('/api/auth', { method: 'DELETE' });
     } finally {
       setUser(null);
+      setGroqApiKeyInput('');
       setMonths({});
       setFeatureRequests([]);
       setAdminUsers([]);
@@ -335,6 +343,56 @@ export default function Home() {
       showToast('تم تسجيل الخروج');
     }
   }, [showToast]);
+
+  const saveGroqApiKey = useCallback(async () => {
+    const apiKey = groqApiKeyInput.trim();
+    if (!apiKey) {
+      showToast('الصق مفتاح Groq أولاً', 'error');
+      return;
+    }
+
+    setSavingGroqKey(true);
+    try {
+      const res = await fetch('/api/user/groq-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey }),
+      });
+
+      if (!res.ok) {
+        throw new Error(await getErrorMessage(res, 'تعذر حفظ مفتاح Groq'));
+      }
+
+      setUser((current) => (current ? { ...current, has_groq_api_key: true } : current));
+      setGroqApiKeyInput('');
+      showToast('تم حفظ مفتاح Groq لهذا الحساب');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'تعذر حفظ مفتاح Groq', 'error');
+    } finally {
+      setSavingGroqKey(false);
+    }
+  }, [getErrorMessage, groqApiKeyInput, showToast]);
+
+  const deleteGroqApiKey = useCallback(async () => {
+    setSavingGroqKey(true);
+    try {
+      const res = await fetch('/api/user/groq-key', {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        throw new Error(await getErrorMessage(res, 'تعذر حذف مفتاح Groq'));
+      }
+
+      setUser((current) => (current ? { ...current, has_groq_api_key: false } : current));
+      setGroqApiKeyInput('');
+      showToast('تم حذف مفتاح Groq من الحساب');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'تعذر حذف مفتاح Groq', 'error');
+    } finally {
+      setSavingGroqKey(false);
+    }
+  }, [getErrorMessage, showToast]);
 
   const handleCopyConfirm = async (items: Expense[]) => {
     try {
@@ -584,6 +642,69 @@ export default function Home() {
           <p className="account-expiry">
             ينتهي الاشتراك في {formatDate(String(user.subscription_expires_at).slice(0, 10))}
           </p>
+
+          <div className="account-ai-box">
+            <div className="account-ai-head">
+              <strong className="title-with-icon">
+                <AppIcon name="lock" size={16} />
+                <span>Groq AI</span>
+              </strong>
+              <span className={`status-chip ${user.has_groq_api_key ? 'active' : 'suspended'}`}>
+                {user.has_groq_api_key ? 'مربوط' : 'غير مربوط'}
+              </span>
+            </div>
+
+            <input
+              type="password"
+              className="form-control"
+              value={groqApiKeyInput}
+              onChange={(event) => setGroqApiKeyInput(event.target.value)}
+              placeholder={user.has_groq_api_key ? 'اكتب مفتاح جديد للاستبدال' : 'الصق مفتاح Groq هنا'}
+              autoComplete="off"
+              spellCheck={false}
+            />
+
+            <div className="account-ai-actions">
+              <button
+                className="btn btn-primary btn-with-icon"
+                type="button"
+                onClick={saveGroqApiKey}
+                disabled={savingGroqKey || !groqApiKeyInput.trim()}
+              >
+                <AppIcon name="save" size={15} />
+                <span>{savingGroqKey ? 'جارٍ الحفظ...' : user.has_groq_api_key ? 'تحديث المفتاح' : 'حفظ المفتاح'}</span>
+              </button>
+
+              {user.has_groq_api_key && (
+                <button
+                  className="btn btn-ghost btn-with-icon"
+                  type="button"
+                  onClick={deleteGroqApiKey}
+                  disabled={savingGroqKey}
+                >
+                  <AppIcon name="trash" size={15} />
+                  <span>حذف</span>
+                </button>
+              )}
+            </div>
+
+            <div className="account-ai-help">
+              <span>1. افتح صفحة مفاتيح Groq الرسمية.</span>
+              <span>2. أنشئ مفتاح جديد ثم انسخه.</span>
+              <span>3. الصقه هنا ليشتغل المساعد الذكي.</span>
+              <span>المفتاح يُخزن بشكل مشفّر داخل النظام.</span>
+            </div>
+
+            <a
+              className="account-ai-link"
+              href="https://console.groq.com/keys"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <AppIcon name="search" size={15} />
+              <span>فتح صفحة Groq Keys</span>
+            </a>
+          </div>
 
           {canUseProduct && (
             <div className="month-selector account-month-selector">
@@ -1102,6 +1223,15 @@ export default function Home() {
           type={modalType}
           onClose={() => setModalOpen(false)}
           onSave={handleAddExpense}
+        />
+      )}
+
+      {canUseProduct && (
+        <VoiceFinanceAssistant
+          month={currentMonth}
+          hasGroqApiKey={Boolean(user?.has_groq_api_key)}
+          showToast={showToast}
+          onApplied={loadAll}
         />
       )}
 

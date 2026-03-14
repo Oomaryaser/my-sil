@@ -15,6 +15,7 @@ interface DBUserRow {
   subscription_expires_at: string;
   created_at: string;
   todo_announcement_seen?: boolean;
+  groq_api_key_encrypted?: string | null;
 }
 
 interface RequireUserOptions {
@@ -68,9 +69,11 @@ export function isSubscriptionActive(user: Pick<AppUser, 'subscription_status' |
 }
 
 export function normalizeUser(row: DBUserRow): AppUser {
+  const { groq_api_key_encrypted, ...safeRow } = row;
   return {
-    ...row,
-    isSubscriptionActive: isSubscriptionActive(row),
+    ...safeRow,
+    has_groq_api_key: Boolean(groq_api_key_encrypted),
+    isSubscriptionActive: isSubscriptionActive(safeRow),
   };
 }
 
@@ -88,7 +91,7 @@ export async function getSessionUser(req: Request): Promise<AppUser | null> {
 
   const sql = getDB();
   const rows = await sql`
-    SELECT id, name, email, role, subscription_status, subscription_started_at, subscription_expires_at, created_at, todo_announcement_seen
+    SELECT id, name, email, role, subscription_status, subscription_started_at, subscription_expires_at, created_at, todo_announcement_seen, groq_api_key_encrypted
     FROM users
     WHERE id = ${userId}
     LIMIT 1

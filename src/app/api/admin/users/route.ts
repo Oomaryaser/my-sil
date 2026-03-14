@@ -19,6 +19,10 @@ export async function GET(req: Request) {
         u.subscription_started_at,
         u.subscription_expires_at,
         u.created_at,
+        CASE
+          WHEN u.groq_api_key_encrypted IS NULL OR u.groq_api_key_encrypted = '' THEN FALSE
+          ELSE TRUE
+        END AS has_groq_api_key,
         (
           SELECT COUNT(*)::int
           FROM feature_requests fr

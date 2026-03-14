@@ -21,6 +21,7 @@ export async function initDB() {
       subscription_started_at TIMESTAMP NOT NULL DEFAULT NOW(),
       subscription_expires_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '1 year'),
       todo_announcement_seen BOOLEAN NOT NULL DEFAULT FALSE,
+      groq_api_key_encrypted TEXT,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     )
@@ -29,6 +30,11 @@ export async function initDB() {
   await sql`
     ALTER TABLE users
     ADD COLUMN IF NOT EXISTS todo_announcement_seen BOOLEAN NOT NULL DEFAULT FALSE
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS groq_api_key_encrypted TEXT
   `;
 
   await sql`

@@ -46,6 +46,8 @@ function IconPath({ name }: { name: AppIconName }) {
     trash: <><path d="M4 7h16" /><path d="M9 7V4h6v3" /><path d="M7 7l1 13h8l1-13" /></>,
     close: <><path d="m6 6 12 12" /><path d="M18 6 6 18" /></>,
     plus: <><path d="M12 5v14" /><path d="M5 12h14" /></>,
+    mic: <><path d="M12 15a4 4 0 0 0 4-4V7a4 4 0 1 0-8 0v4a4 4 0 0 0 4 4Z" /><path d="M5 11a7 7 0 0 0 14 0" /><path d="M12 18v4" /><path d="M8 22h8" /></>,
+    wave: <><path d="M2 12h2l2-4 4 8 4-8 2 4h6" /></>,
     search: <><circle cx="11" cy="11" r="6" /><path d="m20 20-3.5-3.5" /></>,
     note: <><path d="M7 3h8l4 4v14H7Z" /><path d="M15 3v5h4" /><path d="M10 13h6" /><path d="M10 17h4" /></>,
     clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
