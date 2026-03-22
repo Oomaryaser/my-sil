@@ -25,10 +25,12 @@ export async function GET(req: Request) {
     `;
 
     const actual = await sql`
-      SELECT *
-      FROM actual_expenses
-      WHERE user_id = ${auth.user.id}
-      ORDER BY month DESC, date DESC, created_at DESC
+      SELECT ae.*, eg.name AS epic_goal_name
+      FROM actual_expenses ae
+      LEFT JOIN epic_goals eg
+        ON eg.id = ae.epic_goal_id AND eg.user_id = ae.user_id
+      WHERE ae.user_id = ${auth.user.id}
+      ORDER BY ae.month DESC, ae.date DESC, ae.created_at DESC
     `;
 
     const sources = await sql`
@@ -55,6 +57,20 @@ export async function GET(req: Request) {
       ORDER BY month DESC, created_at ASC
     `;
 
+    const goalAllocations = await sql`
+      SELECT *
+      FROM epic_goal_allocations
+      WHERE user_id = ${auth.user.id}
+      ORDER BY month DESC, created_at DESC
+    `;
+
+    const surplusAdjustments = await sql`
+      SELECT *
+      FROM surplus_adjustments
+      WHERE user_id = ${auth.user.id}
+      ORDER BY month DESC, created_at DESC
+    `;
+
     const habitEntries = await sql`
       SELECT *
       FROM habit_entries
@@ -68,6 +84,8 @@ export async function GET(req: Request) {
       actual: object[];
       income_sources: object[];
       habits: object[];
+      goal_allocations: object[];
+      surplus_adjustments: object[];
     }> = {};
 
     const ensure = (month: string) => {
@@ -78,6 +96,8 @@ export async function GET(req: Request) {
           actual: [],
           income_sources: [],
           habits: [],
+          goal_allocations: [],
+          surplus_adjustments: [],
         };
       }
     };
@@ -111,6 +131,16 @@ export async function GET(req: Request) {
         ...habit,
         entries: habitEntries.filter((entry: Record<string, unknown>) => entry.habit_id === habit.id),
       });
+    }
+
+    for (const allocation of goalAllocations) {
+      ensure(allocation.month);
+      months[allocation.month].goal_allocations.push(allocation);
+    }
+
+    for (const adjustment of surplusAdjustments) {
+      ensure(adjustment.month);
+      months[adjustment.month].surplus_adjustments.push(adjustment);
     }
 
     return NextResponse.json(months);

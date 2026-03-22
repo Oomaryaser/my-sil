@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { getDB, initDB } from '@/lib/db';
+import { getEpicGoalTotals } from '@/lib/epic-goals';
 
 export async function GET(req: Request) {
   const auth = await requireUser(req);
@@ -25,10 +26,12 @@ export async function GET(req: Request) {
           ORDER BY created_at ASC
         `
       : await sql`
-          SELECT *
-          FROM actual_expenses
-          WHERE user_id = ${auth.user.id} AND month = ${month}
-          ORDER BY date DESC, created_at DESC
+          SELECT ae.*, eg.name AS epic_goal_name
+          FROM actual_expenses ae
+          LEFT JOIN epic_goals eg
+            ON eg.id = ae.epic_goal_id AND eg.user_id = ae.user_id
+          WHERE ae.user_id = ${auth.user.id} AND ae.month = ${month}
+          ORDER BY ae.date DESC, ae.created_at DESC
         `;
 
     return NextResponse.json(rows);
@@ -53,8 +56,11 @@ export async function POST(req: Request) {
     const category = typeof body.category === 'string' ? body.category : 'other';
     const notes = typeof body.notes === 'string' ? body.notes : '';
     const date = typeof body.date === 'string' ? body.date : null;
+    const epicGoalId = typeof body.epic_goal_id === 'string' && body.epic_goal_id.trim()
+      ? body.epic_goal_id.trim()
+      : null;
 
-    if (!id || !month || !name || amount <= 0) {
+    if (!id || !month || !name || Number.isNaN(amount) || amount <= 0) {
       return NextResponse.json({ error: 'بيانات المصروف غير مكتملة' }, { status: 400 });
     }
 
@@ -64,9 +70,29 @@ export async function POST(req: Request) {
         VALUES (${id}, ${auth.user.id}, ${month}, ${name}, ${amount}, ${category}, ${notes})
       `;
     } else if (type === 'actual') {
+      if (epicGoalId) {
+        const goalRows = await sql`
+          SELECT id, name
+          FROM epic_goals
+          WHERE id = ${epicGoalId} AND user_id = ${auth.user.id}
+          LIMIT 1
+        `;
+
+        if (!goalRows.length) {
+          return NextResponse.json({ error: 'الهدف الملحمي غير موجود' }, { status: 400 });
+        }
+
+        const goalTotals = await getEpicGoalTotals(sql, auth.user.id, epicGoalId);
+        if (amount > goalTotals.currentBalance) {
+          return NextResponse.json({
+            error: `رصيد الهدف "${goalRows[0].name}" غير كافٍ لهذا المصروف`,
+          }, { status: 400 });
+        }
+      }
+
       await sql`
-        INSERT INTO actual_expenses (id, user_id, month, name, amount, category, notes, date)
-        VALUES (${id}, ${auth.user.id}, ${month}, ${name}, ${amount}, ${category}, ${notes}, ${date})
+        INSERT INTO actual_expenses (id, user_id, month, name, amount, category, notes, date, epic_goal_id)
+        VALUES (${id}, ${auth.user.id}, ${month}, ${name}, ${amount}, ${category}, ${notes}, ${date}, ${epicGoalId})
       `;
     } else {
       return NextResponse.json({ error: 'type غير صالح' }, { status: 400 });

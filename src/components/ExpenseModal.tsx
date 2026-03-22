@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
-import { ExpenseType } from '@/lib/types';
+import { EpicGoal, ExpenseType, formatNum } from '@/lib/types';
 
 interface Props {
   isOpen: boolean;
   type: ExpenseType;
+  epicGoals: EpicGoal[];
   onClose: () => void;
   onSave: (data: {
     id: string;
@@ -15,16 +16,18 @@ interface Props {
     category: string;
     notes: string;
     date?: string;
+    epic_goal_id?: string;
     type: ExpenseType;
   }) => void;
 }
 
-export default function ExpenseModal({ isOpen, type, onClose, onSave }: Props) {
+export default function ExpenseModal({ isOpen, type, epicGoals, onClose, onSave }: Props) {
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('food');
   const [notes, setNotes] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [epicGoalId, setEpicGoalId] = useState('');
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -36,13 +39,27 @@ export default function ExpenseModal({ isOpen, type, onClose, onSave }: Props) {
 
   const handleSave = () => {
     if (!name.trim() || !amount) { alert('أدخل الاسم والمبلغ'); return; }
+    const parsedAmount = parseFloat(amount);
+    const selectedGoal = epicGoals.find((goal) => goal.id === epicGoalId);
+
+    if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      alert('أدخل مبلغاً صالحاً');
+      return;
+    }
+
+    if (selectedGoal && parsedAmount > Number(selectedGoal.current_balance ?? 0)) {
+      alert(`رصيد الهدف "${selectedGoal.name}" لا يكفي لهذا المصروف`);
+      return;
+    }
+
     onSave({
       id: Date.now().toString(),
       name: name.trim(),
-      amount: parseFloat(amount),
+      amount: parsedAmount,
       category,
       notes,
       date: type === 'actual' ? date : undefined,
+      epic_goal_id: type === 'actual' && epicGoalId ? epicGoalId : undefined,
       type,
     });
   };
@@ -95,6 +112,22 @@ export default function ExpenseModal({ isOpen, type, onClose, onSave }: Props) {
             </div>
           )}
         </div>
+
+        {type === 'actual' && epicGoals.length > 0 && (
+          <div className="form-row single">
+            <div className="form-group">
+              <label>الهدف الملحمي</label>
+              <select className="form-control" value={epicGoalId} onChange={e => setEpicGoalId(e.target.value)}>
+                <option value="">بدون هدف ملحمي</option>
+                {epicGoals.map((goal) => (
+                  <option key={goal.id} value={goal.id}>
+                    {goal.name} — الرصيد {formatNum(Number(goal.current_balance ?? 0))}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
 
         <div className="form-row single">
           <div className="form-group">

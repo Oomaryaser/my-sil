@@ -52,9 +52,49 @@ export interface Expense {
   category: string;
   notes?: string;
   date?: string;
+  epic_goal_id?: string | null;
+  epic_goal_name?: string | null;
 }
 
 export type ExpenseType = 'planned' | 'actual';
+
+export interface EpicGoalAllocation {
+  id: string;
+  epic_goal_id: string;
+  month: string;
+  amount: number;
+  notes?: string;
+  created_at?: string;
+}
+
+export interface SurplusAdjustment {
+  id: string;
+  month: string;
+  amount: number;
+  notes?: string;
+  allocation_id?: string | null;
+  created_at?: string;
+}
+
+export interface EpicGoal {
+  id: string;
+  name: string;
+  target_amount: number;
+  notes?: string;
+  saved_total?: number;
+  spent_total?: number;
+  current_balance?: number;
+  allocations?: EpicGoalAllocation[];
+}
+
+export interface EpicGoalSurplusMonth {
+  month: string;
+  income_total: number;
+  actual_total: number;
+  allocated_total: number;
+  adjustment_total: number;
+  available: number;
+}
 
 export interface HabitEntry {
   id: string;

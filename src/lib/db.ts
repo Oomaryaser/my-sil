@@ -86,7 +86,56 @@ export async function initDB() {
   `;
 
   await sql`ALTER TABLE actual_expenses ADD COLUMN IF NOT EXISTS user_id VARCHAR(64)`;
+  await sql`ALTER TABLE actual_expenses ADD COLUMN IF NOT EXISTS epic_goal_id VARCHAR(64)`;
   await sql`CREATE INDEX IF NOT EXISTS actual_expenses_user_month_idx ON actual_expenses (user_id, month, date)`;
+  await sql`CREATE INDEX IF NOT EXISTS actual_expenses_goal_idx ON actual_expenses (user_id, epic_goal_id)`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS epic_goals (
+      id VARCHAR(64) PRIMARY KEY,
+      user_id VARCHAR(64),
+      name VARCHAR(255) NOT NULL,
+      target_amount NUMERIC NOT NULL DEFAULT 0,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `;
+
+  await sql`ALTER TABLE epic_goals ADD COLUMN IF NOT EXISTS user_id VARCHAR(64)`;
+  await sql`CREATE INDEX IF NOT EXISTS epic_goals_user_idx ON epic_goals (user_id, created_at ASC)`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS epic_goal_allocations (
+      id VARCHAR(64) PRIMARY KEY,
+      user_id VARCHAR(64),
+      epic_goal_id VARCHAR(64) NOT NULL,
+      month VARCHAR(7) NOT NULL,
+      amount NUMERIC NOT NULL DEFAULT 0,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `;
+
+  await sql`ALTER TABLE epic_goal_allocations ADD COLUMN IF NOT EXISTS user_id VARCHAR(64)`;
+  await sql`CREATE INDEX IF NOT EXISTS epic_goal_allocations_user_month_idx ON epic_goal_allocations (user_id, month, created_at DESC)`;
+  await sql`CREATE INDEX IF NOT EXISTS epic_goal_allocations_goal_idx ON epic_goal_allocations (user_id, epic_goal_id, created_at DESC)`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS surplus_adjustments (
+      id VARCHAR(64) PRIMARY KEY,
+      user_id VARCHAR(64),
+      allocation_id VARCHAR(64),
+      month VARCHAR(7) NOT NULL,
+      amount NUMERIC NOT NULL DEFAULT 0,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `;
+
+  await sql`ALTER TABLE surplus_adjustments ADD COLUMN IF NOT EXISTS user_id VARCHAR(64)`;
+  await sql`ALTER TABLE surplus_adjustments ADD COLUMN IF NOT EXISTS allocation_id VARCHAR(64)`;
+  await sql`CREATE INDEX IF NOT EXISTS surplus_adjustments_user_month_idx ON surplus_adjustments (user_id, month, created_at DESC)`;
+  await sql`CREATE INDEX IF NOT EXISTS surplus_adjustments_allocation_idx ON surplus_adjustments (user_id, allocation_id)`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS income_sources (
@@ -201,5 +250,8 @@ export async function initDB() {
     await sql`UPDATE income_payments SET user_id = ${ownerId} WHERE user_id IS NULL`;
     await sql`UPDATE habits SET user_id = ${ownerId} WHERE user_id IS NULL`;
     await sql`UPDATE habit_entries SET user_id = ${ownerId} WHERE user_id IS NULL`;
+    await sql`UPDATE epic_goals SET user_id = ${ownerId} WHERE user_id IS NULL`;
+    await sql`UPDATE epic_goal_allocations SET user_id = ${ownerId} WHERE user_id IS NULL`;
+    await sql`UPDATE surplus_adjustments SET user_id = ${ownerId} WHERE user_id IS NULL`;
   }
 }

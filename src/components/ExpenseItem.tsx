@@ -22,6 +22,7 @@ export default function ExpenseItem({ expense, type, onDelete }: Props) {
           <div className="expense-name">{expense.name}</div>
           <div className="expense-cat">
             {catName}
+            {expense.epic_goal_name ? ` · هدف ملحمي: ${expense.epic_goal_name}` : ''}
             {isActual && expense.date ? ` · ${expense.date}` : ''}
             {expense.notes ? ` · ${expense.notes}` : ''}
           </div>

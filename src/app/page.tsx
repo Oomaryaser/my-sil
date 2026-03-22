@@ -5,6 +5,7 @@ import AdminPanel from '@/components/AdminPanel';
 import AppIcon from '@/components/AppIcon';
 import AuthScreen from '@/components/AuthScreen';
 import CopyPlannedDialog from '@/components/CopyPlannedDialog';
+import EpicGoalsSection from '@/components/EpicGoalsSection';
 import ExpenseModal from '@/components/ExpenseModal';
 import HabitsSection from '@/components/HabitsSection';
 import IncomePage from '@/components/IncomePage';
@@ -19,12 +20,16 @@ import {
   AppUser,
   CAT_ICONS,
   CAT_NAMES,
+  EpicGoal,
+  EpicGoalAllocation,
+  EpicGoalSurplusMonth,
   Expense,
   ExpenseType,
   FeatureRequest,
   Habit,
   IncomeSource,
   Salary,
+  SurplusAdjustment,
   TodoItem,
   formatDate,
   formatNum,
@@ -33,7 +38,7 @@ import {
   todayFormatted,
 } from '@/lib/types';
 
-type Page = 'dashboard' | 'income' | 'todo' | 'habits' | 'planned' | 'actual' | 'history' | 'telegram' | 'requests' | 'admin';
+type Page = 'dashboard' | 'income' | 'epicGoals' | 'todo' | 'habits' | 'planned' | 'actual' | 'history' | 'telegram' | 'requests' | 'admin';
 
 interface MonthData {
   salary: Salary | null;
@@ -41,6 +46,8 @@ interface MonthData {
   actual: Expense[];
   income_sources: IncomeSource[];
   habits: Habit[];
+  goal_allocations: EpicGoalAllocation[];
+  surplus_adjustments: SurplusAdjustment[];
 }
 
 interface AuthPayload {
@@ -73,6 +80,7 @@ export default function Home() {
   const [savingGroqKey, setSavingGroqKey] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState<ExpenseType>('planned');
+  const [epicGoals, setEpicGoals] = useState<EpicGoal[]>([]);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' as 'success' | 'error' });
   const [copyDialog, setCopyDialog] = useState<{ fromMonth: string; toMonth: string; expenses: Expense[] } | null>(null);
 
@@ -94,7 +102,15 @@ export default function Home() {
   const isAdmin = user?.role === 'admin';
 
   const getMonthData = useCallback((): MonthData => {
-    return months[currentMonth] || { salary: null, planned: [], actual: [], income_sources: [], habits: [] };
+    return months[currentMonth] || {
+      salary: null,
+      planned: [],
+      actual: [],
+      income_sources: [],
+      habits: [],
+      goal_allocations: [],
+      surplus_adjustments: [],
+    };
   }, [currentMonth, months]);
 
   const loadSession = useCallback(async () => {
@@ -144,6 +160,39 @@ export default function Home() {
       setLoading(false);
     }
   }, [canUseProduct, getErrorMessage, showToast]);
+
+  const loadEpicGoals = useCallback(async () => {
+    if (!canUseProduct) {
+      setEpicGoals([]);
+      return null;
+    }
+
+    try {
+      const res = await fetch('/api/epic-goals');
+      if (res.status === 401) {
+        setUser(null);
+        setEpicGoals([]);
+        return null;
+      }
+      if (res.status === 403) {
+        setEpicGoals([]);
+        return null;
+      }
+      if (!res.ok) {
+        throw new Error(await getErrorMessage(res, 'تعذر تحميل الأهداف الملحمية'));
+      }
+      const data = await res.json() as EpicGoal[];
+      setEpicGoals(data);
+      return data;
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'تعذر تحميل الأهداف الملحمية', 'error');
+      return null;
+    }
+  }, [canUseProduct, getErrorMessage, showToast]);
+
+  const refreshFinanceData = useCallback(async () => {
+    await Promise.all([loadAll(), loadEpicGoals()]);
+  }, [loadAll, loadEpicGoals]);
 
   const loadFeatureRequests = useCallback(async () => {
     if (!user) {
@@ -251,6 +300,7 @@ export default function Home() {
       setAdminUsers([]);
       setAdminRequests([]);
       setMonths({});
+      setEpicGoals([]);
       setTodos([]);
     }
   }, [loadFeatureRequests, user]);
@@ -266,6 +316,14 @@ export default function Home() {
       setMonths({});
     }
   }, [canUseProduct, loadAll]);
+
+  useEffect(() => {
+    if (canUseProduct) {
+      loadEpicGoals();
+    } else {
+      setEpicGoals([]);
+    }
+  }, [canUseProduct, loadEpicGoals]);
 
   useEffect(() => {
     if (canUseProduct) {
@@ -338,6 +396,7 @@ export default function Home() {
       setAdminUsers([]);
       setAdminRequests([]);
       setTodos([]);
+      setEpicGoals([]);
       setPage('dashboard');
       setSidebarOpen(false);
       showToast('تم تسجيل الخروج');
@@ -431,6 +490,7 @@ export default function Home() {
     category: string;
     notes: string;
     date?: string;
+    epic_goal_id?: string;
     type: ExpenseType;
   }) => {
     try {
@@ -446,7 +506,7 @@ export default function Home() {
 
       setModalOpen(false);
       showToast('تم الحفظ');
-      await loadAll();
+      await refreshFinanceData();
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'خطأ في الحفظ', 'error');
     }
@@ -459,7 +519,7 @@ export default function Home() {
         throw new Error(await getErrorMessage(res, 'خطأ في الحذف'));
       }
       showToast('تم الحذف');
-      await loadAll();
+      await refreshFinanceData();
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'خطأ في الحذف', 'error');
     }
@@ -534,17 +594,44 @@ export default function Home() {
   const d = getMonthData();
   const incomeSources: IncomeSource[] = d.income_sources || [];
   const habits: Habit[] = d.habits || [];
+  const goalAllocations: EpicGoalAllocation[] = d.goal_allocations || [];
+  const surplusAdjustments: SurplusAdjustment[] = d.surplus_adjustments || [];
   const totalIncome = incomeSources.reduce((sum, src) => sum + Number(src.paid_total ?? 0), 0);
   const totalExpectedIncome = incomeSources.reduce((sum, src) => sum + Number(src.expected_amount), 0);
   const sal = totalIncome || (d.salary ? Number(d.salary.total) : 0);
   const plannedTotal = d.planned.reduce((sum, expense) => sum + Number(expense.amount), 0);
   const actualTotal = d.actual.reduce((sum, expense) => sum + Number(expense.amount), 0);
-  const balance = sal - actualTotal;
-  const pct = sal > 0 ? Math.min(100, Math.round((actualTotal / sal) * 100)) : 0;
+  const allocatedToGoalsTotal = goalAllocations.reduce((sum, allocation) => sum + Number(allocation.amount), 0);
+  const surplusAdjustmentTotal = surplusAdjustments.reduce((sum, adjustment) => sum + Number(adjustment.amount), 0);
+  const balance = sal - actualTotal - allocatedToGoalsTotal - surplusAdjustmentTotal;
+  const actualPct = sal > 0 ? Math.min(100, Math.round((actualTotal / sal) * 100)) : 0;
+  const committedPct = sal > 0 ? Math.min(100, Math.round(((actualTotal + allocatedToGoalsTotal + surplusAdjustmentTotal) / sal) * 100)) : 0;
   const habitSummary = buildHabitSummary(currentMonth, habits);
+  const totalGoalBalance = epicGoals.reduce((sum, goal) => sum + Number(goal.current_balance ?? 0), 0);
+  const topGoal = [...epicGoals].sort((a, b) => Number(b.current_balance ?? 0) - Number(a.current_balance ?? 0))[0];
+  const surplusMonths: EpicGoalSurplusMonth[] = Object.entries(months)
+    .map(([monthKey, monthData]) => {
+      const monthIncome = (monthData.income_sources || []).reduce((sum, src) => sum + Number(src.paid_total ?? 0), 0);
+      const incomeTotal = monthIncome || (monthData.salary ? Number(monthData.salary.total) : 0);
+      const actualTotalForMonth = monthData.actual.reduce((sum, expense) => sum + Number(expense.amount), 0);
+      const allocatedTotalForMonth = (monthData.goal_allocations || []).reduce((sum, allocation) => sum + Number(allocation.amount), 0);
+      const adjustmentTotalForMonth = (monthData.surplus_adjustments || []).reduce((sum, adjustment) => sum + Number(adjustment.amount), 0);
+
+      return {
+        month: monthKey,
+        income_total: incomeTotal,
+        actual_total: actualTotalForMonth,
+        allocated_total: allocatedTotalForMonth,
+        adjustment_total: adjustmentTotalForMonth,
+        available: incomeTotal - actualTotalForMonth - allocatedTotalForMonth - adjustmentTotalForMonth,
+      };
+    })
+    .filter((item) => item.available > 0)
+    .sort((a, b) => b.month.localeCompare(a.month));
   const productNavItems: Array<{ id: Page; icon: AppIconName; label: string }> = [
     { id: 'dashboard', icon: 'dashboard', label: 'لوحة التحكم' },
     { id: 'income', icon: 'income', label: 'الدخل' },
+    { id: 'epicGoals', icon: 'target', label: 'الأهداف الملحمية' },
     { id: 'todo', icon: 'todo', label: 'المهام' },
     { id: 'habits', icon: 'habits', label: 'العادات' },
     { id: 'planned', icon: 'planned', label: 'المصاريف المتوقعة' },
@@ -560,6 +647,23 @@ export default function Home() {
     ...(canUseProduct ? productNavItems : []),
     ...secondaryNavItems,
   ];
+  const buildExpenseMeta = (expense: Expense, options?: { includeDate?: boolean }) => {
+    const parts = [CAT_NAMES[expense.category] || 'أخرى'];
+
+    if (expense.epic_goal_name) {
+      parts.push(`هدف ملحمي: ${expense.epic_goal_name}`);
+    }
+
+    if (options?.includeDate && expense.date) {
+      parts.push(formatDate(expense.date));
+    }
+
+    if (expense.notes) {
+      parts.push(expense.notes);
+    }
+
+    return parts.join(' · ');
+  };
 
   if (sessionLoading) {
     return (
@@ -767,13 +871,60 @@ export default function Home() {
                   <div className="stat-value red">{formatNum(actualTotal)}</div>
                   <div className="stat-sub">{d.actual.length} معاملة</div>
                   <div className="progress-wrap">
-                    <div className="progress-bar" style={{ width: `${pct}%`, background: pct > 80 ? 'var(--red)' : pct > 60 ? 'var(--orange)' : 'var(--accent)' }} />
+                    <div className="progress-bar" style={{ width: `${actualPct}%`, background: actualPct > 80 ? 'var(--red)' : actualPct > 60 ? 'var(--orange)' : 'var(--accent)' }} />
                   </div>
                 </div>
                 <div className={`stat-card ${balance >= 0 ? 'green' : 'red'}`}>
                   <div className="stat-label">الرصيد المتبقي</div>
                   <div className={`stat-value ${balance >= 0 ? 'green' : 'red'}`}>{formatNum(balance)}</div>
-                  <div className="stat-sub">{pct}% من الدخل صُرف</div>
+                  <div className="stat-sub">{committedPct}% من الدخل صُرف أو تحوّل أو تسجل كهامش خطأ</div>
+                </div>
+              </div>
+
+              <div className="panel">
+                <div className="panel-header">
+                  <h3 className="title-with-icon"><AppIcon name="target" size={18} /><span>ملخص الأهداف الملحمية</span></h3>
+                  <button className="btn btn-ghost btn-sm btn-with-icon" onClick={() => setPage('epicGoals')}>
+                    <AppIcon name="target" size={14} />
+                    <span>فتح الأهداف</span>
+                  </button>
+                </div>
+                <div className="panel-body">
+                  {epicGoals.length === 0 ? (
+                    <div className="empty-state" style={{ padding: '24px 20px' }}>
+                      <div className="icon"><AppIcon name="target" size={28} /></div>
+                      <p>أضف هدفاً ملحمياً حتى تقدر تحول فائض الشهر وتربط به المصاريف.</p>
+                    </div>
+                  ) : (
+                    <div className="summary-bar" style={{ marginBottom: 0 }}>
+                      <div className="summary-item">
+                        <div className="label">عدد الأهداف</div>
+                        <div className="val">{epicGoals.length}</div>
+                      </div>
+                      <div className="summary-divider" />
+                      <div className="summary-item">
+                        <div className="label">الرصيد داخل الأهداف</div>
+                        <div className="val" style={{ color: 'var(--green)' }}>{formatNum(totalGoalBalance)}</div>
+                      </div>
+                      <div className="summary-divider" />
+                      <div className="summary-item">
+                        <div className="label">المحوّل هذا الشهر</div>
+                        <div className="val" style={{ color: 'var(--accent)' }}>{formatNum(allocatedToGoalsTotal)}</div>
+                      </div>
+                      <div className="summary-divider" />
+                      <div className="summary-item">
+                        <div className="label">أعلى هدف حالياً</div>
+                        <div className="val inline-icon-value">
+                          {topGoal ? (
+                            <>
+                              <AppIcon name="target" size={16} />
+                              <span>{topGoal.name}</span>
+                            </>
+                          ) : '—'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -879,7 +1030,7 @@ export default function Home() {
                         <div className={`expense-icon cat-${expense.category}`}><AppIcon name={CAT_ICONS[expense.category] || 'other'} size={18} /></div>
                         <div>
                           <div className="expense-name">{expense.name}</div>
-                          <div className="expense-cat">{CAT_NAMES[expense.category] || 'أخرى'}{expense.date ? ` · ${formatDate(expense.date)}` : ''}</div>
+                          <div className="expense-cat">{buildExpenseMeta(expense, { includeDate: true })}</div>
                         </div>
                       </div>
                       <span className="expense-amount" style={{ color: 'var(--red)' }}>{formatNum(Number(expense.amount))}</span>
@@ -898,6 +1049,22 @@ export default function Home() {
                 month={currentMonth}
                 sources={incomeSources}
                 onRefresh={loadAll}
+                showToast={showToast}
+              />
+            </div>
+
+            <div className={`page${page === 'epicGoals' ? ' active fade-in' : ''}`}>
+              <div className="page-header">
+                <h2 className="title-with-icon"><AppIcon name="target" size={22} /><span>الأهداف الملحمية</span></h2>
+                <p>حوّل فائض الشهر لهدف محدد واربط المصروفات بهذا الهدف حتى ينخصم من رصيده.</p>
+              </div>
+              <EpicGoalsSection
+                month={currentMonth}
+                goals={epicGoals}
+                monthAllocations={goalAllocations}
+                monthBalance={balance}
+                surplusMonths={surplusMonths}
+                onRefresh={refreshFinanceData}
                 showToast={showToast}
               />
             </div>
@@ -1045,6 +1212,10 @@ export default function Home() {
                       <div className="summary-bar">
                         <div className="summary-item"><div className="label">إجمالي الفعلي</div><div className="val" style={{ color: 'var(--red)' }}>{formatNum(actualTotal)}</div></div>
                         <div className="summary-divider" />
+                        <div className="summary-item"><div className="label">تحويل للأهداف</div><div className="val" style={{ color: 'var(--accent)' }}>{formatNum(allocatedToGoalsTotal)}</div></div>
+                        <div className="summary-divider" />
+                        <div className="summary-item"><div className="label">هامش الخطأ</div><div className="val" style={{ color: 'var(--orange)' }}>{formatNum(surplusAdjustmentTotal)}</div></div>
+                        <div className="summary-divider" />
                         <div className="summary-item"><div className="label">الباقي</div><div className="val" style={{ color: balance >= 0 ? 'var(--green)' : 'var(--red)' }}>{formatNum(balance)}</div></div>
                         <div className="summary-divider" />
                         <div className="summary-item"><div className="label">عدد المصاريف</div><div className="val">{d.actual.length}</div></div>
@@ -1071,7 +1242,7 @@ export default function Home() {
                                     <div className={`expense-icon cat-${expense.category}`}><AppIcon name={CAT_ICONS[expense.category] || 'other'} size={18} /></div>
                                     <div>
                                       <div className="expense-name">{expense.name}</div>
-                                      <div className="expense-cat">{CAT_NAMES[expense.category] || 'أخرى'}{expense.notes ? ` · ${expense.notes}` : ''}</div>
+                                      <div className="expense-cat">{buildExpenseMeta(expense)}</div>
                                     </div>
                                   </div>
                                   <div className="expense-right">
@@ -1104,7 +1275,9 @@ export default function Home() {
                     const monthIncome = (monthData.income_sources || []).reduce((sum: number, src: IncomeSource) => sum + Number(src.paid_total ?? 0), 0);
                     const monthSalary = monthIncome || (monthData.salary ? Number(monthData.salary.total) : 0);
                     const monthActual = monthData.actual.reduce((sum, expense) => sum + Number(expense.amount), 0);
-                    const monthBalance = monthSalary - monthActual;
+                    const monthGoalAllocated = (monthData.goal_allocations || []).reduce((sum, allocation) => sum + Number(allocation.amount), 0);
+                    const monthAdjustmentTotal = (monthData.surplus_adjustments || []).reduce((sum, adjustment) => sum + Number(adjustment.amount), 0);
+                    const monthBalance = monthSalary - monthActual - monthGoalAllocated - monthAdjustmentTotal;
                     const monthHabits = monthData.habits?.length || 0;
                     return (
                       <div key={month} className="history-month" onClick={() => { setCurrentMonth(month); setPage('dashboard'); }}>
@@ -1117,6 +1290,8 @@ export default function Home() {
                         </div>
                         <div className="stats">
                           <span style={{ color: 'var(--red)' }}>صُرف {formatNum(monthActual)}</span>
+                          <span style={{ color: 'var(--accent)' }}>للأهداف {formatNum(monthGoalAllocated)}</span>
+                          <span style={{ color: 'var(--orange)' }}>هامش خطأ {formatNum(monthAdjustmentTotal)}</span>
                           <span style={{ color: monthBalance >= 0 ? 'var(--green)' : 'var(--red)' }}>متبقي {formatNum(monthBalance)}</span>
                         </div>
                       </div>
@@ -1221,6 +1396,7 @@ export default function Home() {
           key={`${modalType}-${modalOpen ? 'open' : 'closed'}-${currentMonth}`}
           isOpen={modalOpen}
           type={modalType}
+          epicGoals={epicGoals}
           onClose={() => setModalOpen(false)}
           onSave={handleAddExpense}
         />
