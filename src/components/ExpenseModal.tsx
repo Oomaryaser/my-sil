@@ -40,15 +40,9 @@ export default function ExpenseModal({ isOpen, type, epicGoals, onClose, onSave 
   const handleSave = () => {
     if (!name.trim() || !amount) { alert('أدخل الاسم والمبلغ'); return; }
     const parsedAmount = parseFloat(amount);
-    const selectedGoal = epicGoals.find((goal) => goal.id === epicGoalId);
 
     if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
       alert('أدخل مبلغاً صالحاً');
-      return;
-    }
-
-    if (selectedGoal && parsedAmount > Number(selectedGoal.current_balance ?? 0)) {
-      alert(`رصيد الهدف "${selectedGoal.name}" لا يكفي لهذا المصروف`);
       return;
     }
 
@@ -116,12 +110,12 @@ export default function ExpenseModal({ isOpen, type, epicGoals, onClose, onSave 
         {type === 'actual' && epicGoals.length > 0 && (
           <div className="form-row single">
             <div className="form-group">
-              <label>الهدف الملحمي</label>
+              <label>الهدف الملحمي (الربط يعتبر تقدماً للهدف)</label>
               <select className="form-control" value={epicGoalId} onChange={e => setEpicGoalId(e.target.value)}>
                 <option value="">بدون هدف ملحمي</option>
                 {epicGoals.map((goal) => (
                   <option key={goal.id} value={goal.id}>
-                    {goal.name} — الرصيد {formatNum(Number(goal.current_balance ?? 0))}
+                    {goal.name} — المتجمع {formatNum(Number(goal.current_balance ?? 0))}
                   </option>
                 ))}
               </select>

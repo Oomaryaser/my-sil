@@ -50,7 +50,7 @@ export async function GET(req: Request) {
           ...goal,
           saved_total: savedTotal,
           spent_total: spentTotal,
-          current_balance: savedTotal - spentTotal,
+          current_balance: savedTotal + spentTotal,
           allocations: allocations.filter((allocation) => allocation.epic_goal_id === goal.id),
         };
       }),

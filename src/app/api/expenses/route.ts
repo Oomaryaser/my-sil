@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { getDB, initDB } from '@/lib/db';
-import { getEpicGoalTotals } from '@/lib/epic-goals';
-
 export async function GET(req: Request) {
   const auth = await requireUser(req);
   if ('response' in auth) return auth.response;
@@ -72,7 +70,7 @@ export async function POST(req: Request) {
     } else if (type === 'actual') {
       if (epicGoalId) {
         const goalRows = await sql`
-          SELECT id, name
+          SELECT id
           FROM epic_goals
           WHERE id = ${epicGoalId} AND user_id = ${auth.user.id}
           LIMIT 1
@@ -80,13 +78,6 @@ export async function POST(req: Request) {
 
         if (!goalRows.length) {
           return NextResponse.json({ error: 'الهدف الملحمي غير موجود' }, { status: 400 });
-        }
-
-        const goalTotals = await getEpicGoalTotals(sql, auth.user.id, epicGoalId);
-        if (amount > goalTotals.currentBalance) {
-          return NextResponse.json({
-            error: `رصيد الهدف "${goalRows[0].name}" غير كافٍ لهذا المصروف`,
-          }, { status: 400 });
         }
       }
 

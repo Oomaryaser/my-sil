@@ -241,9 +241,9 @@ export default function EpicGoalsSection({
           <div className="stat-sub">أهداف ملحمية فعالة</div>
         </div>
         <div className="stat-card green">
-          <div className="stat-label">الرصيد داخل الأهداف</div>
+          <div className="stat-label">المتجمع داخل الأهداف</div>
           <div className="stat-value green">{formatNum(totalBalance)}</div>
-          <div className="stat-sub">مدخر {formatNum(totalSaved)} ومصروف {formatNum(totalSpent)}</div>
+          <div className="stat-sub">ادخار مباشر {formatNum(totalSaved)} ومربوط من المصاريف {formatNum(totalSpent)}</div>
         </div>
         <div className="stat-card purple">
           <div className="stat-label">المحوّل هذا الشهر</div>
@@ -315,7 +315,7 @@ export default function EpicGoalsSection({
                   >
                     {goals.map((goal) => (
                       <option key={goal.id} value={goal.id}>
-                        {goal.name} — الرصيد {formatNum(Number(goal.current_balance ?? 0))}
+                        {goal.name} — المتجمع {formatNum(Number(goal.current_balance ?? 0))}
                       </option>
                     ))}
                   </select>
@@ -576,7 +576,7 @@ export default function EpicGoalsSection({
 
                 <div className="summary-bar">
                   <div className="summary-item">
-                    <div className="label">الرصيد الحالي</div>
+                    <div className="label">المتجمع حالياً</div>
                     <div className="val" style={{ color: 'var(--green)' }}>{formatNum(currentBalance)}</div>
                   </div>
                   <div className="summary-divider" />
@@ -586,8 +586,8 @@ export default function EpicGoalsSection({
                   </div>
                   <div className="summary-divider" />
                   <div className="summary-item">
-                    <div className="label">مصروف من الهدف</div>
-                    <div className="val" style={{ color: 'var(--red)' }}>{formatNum(spentTotal)}</div>
+                    <div className="label">تقدم من المصاريف</div>
+                    <div className="val" style={{ color: 'var(--green)' }}>{formatNum(spentTotal)}</div>
                   </div>
                   <div className="summary-divider" />
                   <div className="summary-item">

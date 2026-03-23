@@ -651,7 +651,7 @@ export default function Home() {
     const parts = [CAT_NAMES[expense.category] || 'أخرى'];
 
     if (expense.epic_goal_name) {
-      parts.push(`هدف ملحمي: ${expense.epic_goal_name}`);
+      parts.push(`تقدم لهدف: ${expense.epic_goal_name}`);
     }
 
     if (options?.includeDate && expense.date) {
@@ -903,7 +903,7 @@ export default function Home() {
                       </div>
                       <div className="summary-divider" />
                       <div className="summary-item">
-                        <div className="label">الرصيد داخل الأهداف</div>
+                        <div className="label">المتجمع داخل الأهداف</div>
                         <div className="val" style={{ color: 'var(--green)' }}>{formatNum(totalGoalBalance)}</div>
                       </div>
                       <div className="summary-divider" />

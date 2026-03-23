@@ -21,7 +21,7 @@ export async function getEpicGoalTotals(sql: SQL, userId: string, goalId: string
   return {
     savedTotal,
     spentTotal,
-    currentBalance: savedTotal - spentTotal,
+    currentBalance: savedTotal + spentTotal,
   };
 }
 
