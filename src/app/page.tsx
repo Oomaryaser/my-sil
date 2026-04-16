@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AdminPanel from '@/components/AdminPanel';
+import FreelanceSection from '@/components/FreelanceSection';
 import AppIcon from '@/components/AppIcon';
 import AuthScreen from '@/components/AuthScreen';
 import CopyPlannedDialog from '@/components/CopyPlannedDialog';
@@ -38,7 +39,7 @@ import {
   todayFormatted,
 } from '@/lib/types';
 
-type Page = 'dashboard' | 'income' | 'epicGoals' | 'todo' | 'habits' | 'planned' | 'actual' | 'history' | 'telegram' | 'requests' | 'admin';
+type Page = 'dashboard' | 'income' | 'epicGoals' | 'todo' | 'habits' | 'planned' | 'actual' | 'history' | 'telegram' | 'requests' | 'admin' | 'freelance';
 
 interface MonthData {
   salary: Salary | null;
@@ -48,6 +49,8 @@ interface MonthData {
   habits: Habit[];
   goal_allocations: EpicGoalAllocation[];
   surplus_adjustments: SurplusAdjustment[];
+  freelance_paid_total?: number;
+  freelance_pending_total?: number;
 }
 
 interface AuthPayload {
@@ -598,7 +601,9 @@ export default function Home() {
   const surplusAdjustments: SurplusAdjustment[] = d.surplus_adjustments || [];
   const totalIncome = incomeSources.reduce((sum, src) => sum + Number(src.paid_total ?? 0), 0);
   const totalExpectedIncome = incomeSources.reduce((sum, src) => sum + Number(src.expected_amount), 0);
-  const sal = totalIncome || (d.salary ? Number(d.salary.total) : 0);
+  const freelancePaidTotal = Number(d.freelance_paid_total ?? 0);
+  const freelancePendingTotal = Number(d.freelance_pending_total ?? 0);
+  const sal = totalIncome + freelancePaidTotal || (d.salary ? Number(d.salary.total) : 0);
   const plannedTotal = d.planned.reduce((sum, expense) => sum + Number(expense.amount), 0);
   const actualTotal = d.actual.reduce((sum, expense) => sum + Number(expense.amount), 0);
   const allocatedToGoalsTotal = goalAllocations.reduce((sum, allocation) => sum + Number(allocation.amount), 0);
@@ -612,7 +617,7 @@ export default function Home() {
   const surplusMonths: EpicGoalSurplusMonth[] = Object.entries(months)
     .map(([monthKey, monthData]) => {
       const monthIncome = (monthData.income_sources || []).reduce((sum, src) => sum + Number(src.paid_total ?? 0), 0);
-      const incomeTotal = monthIncome || (monthData.salary ? Number(monthData.salary.total) : 0);
+      const incomeTotal = monthIncome + Number(monthData.freelance_paid_total ?? 0) || (monthData.salary ? Number(monthData.salary.total) : 0);
       const actualTotalForMonth = monthData.actual.reduce((sum, expense) => sum + Number(expense.amount), 0);
       const allocatedTotalForMonth = (monthData.goal_allocations || []).reduce((sum, allocation) => sum + Number(allocation.amount), 0);
       const adjustmentTotalForMonth = (monthData.surplus_adjustments || []).reduce((sum, adjustment) => sum + Number(adjustment.amount), 0);
@@ -631,6 +636,7 @@ export default function Home() {
   const productNavItems: Array<{ id: Page; icon: AppIconName; label: string }> = [
     { id: 'dashboard', icon: 'dashboard', label: 'لوحة التحكم' },
     { id: 'income', icon: 'income', label: 'الدخل' },
+    { id: 'freelance', icon: 'briefcase', label: 'التعاملات - العمل الحر' },
     { id: 'epicGoals', icon: 'target', label: 'الأهداف الملحمية' },
     { id: 'todo', icon: 'todo', label: 'المهام' },
     { id: 'habits', icon: 'habits', label: 'العادات' },
@@ -874,6 +880,16 @@ export default function Home() {
                     <div className="progress-bar" style={{ width: `${actualPct}%`, background: actualPct > 80 ? 'var(--red)' : actualPct > 60 ? 'var(--orange)' : 'var(--accent)' }} />
                   </div>
                 </div>
+                {(freelancePaidTotal > 0 || freelancePendingTotal > 0) && (
+                  <div className="stat-card" style={{ borderColor: '#a78bfa40', background: '#a78bfa08' }} onClick={() => setPage('freelance')} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && setPage('freelance')} title="اضغط للذهاب لصفحة العمل الحر">
+                    <div className="stat-label">العمل الحر</div>
+                    <div className="stat-value" style={{ color: '#a78bfa' }}>{formatNum(freelancePaidTotal + freelancePendingTotal)}</div>
+                    <div className="stat-sub">
+                      {freelancePaidTotal > 0 && <span style={{ color: 'var(--green)' }}>{formatNum(freelancePaidTotal)} مستلم </span>}
+                      {freelancePendingTotal > 0 && <span style={{ color: 'var(--orange)' }}>· {formatNum(freelancePendingTotal)} متوقع</span>}
+                    </div>
+                  </div>
+                )}
                 <div className={`stat-card ${balance >= 0 ? 'green' : 'red'}`}>
                   <div className="stat-label">الرصيد المتبقي</div>
                   <div className={`stat-value ${balance >= 0 ? 'green' : 'red'}`}>{formatNum(balance)}</div>
@@ -1049,6 +1065,19 @@ export default function Home() {
                 month={currentMonth}
                 sources={incomeSources}
                 onRefresh={loadAll}
+                showToast={showToast}
+              />
+            </div>
+
+            <div className={`page${page === 'freelance' ? ' active fade-in' : ''}`}>
+              <div className="page-header">
+                <h2 className="title-with-icon"><AppIcon name="briefcase" size={22} /><span>التعاملات - العمل الحر</span></h2>
+                <p>سجّل أعمالك الحرة لكل عميل — الإيراد المتوقع يصبح فعلياً بعد الاستلام ويدخل في حساباتك تلقائياً.</p>
+              </div>
+              <FreelanceSection
+                currentMonth={currentMonth}
+                hasGroqKey={Boolean(user?.has_groq_api_key)}
+                onFreelanceDataChange={loadAll}
                 showToast={showToast}
               />
             </div>
@@ -1273,7 +1302,9 @@ export default function Home() {
                     <div className="empty-state"><div className="icon"><AppIcon name="calendar" size={28} /></div><p>لا يوجد سجل بعد</p></div>
                   ) : Object.entries(months).sort((a, b) => b[0].localeCompare(a[0])).map(([month, monthData]) => {
                     const monthIncome = (monthData.income_sources || []).reduce((sum: number, src: IncomeSource) => sum + Number(src.paid_total ?? 0), 0);
-                    const monthSalary = monthIncome || (monthData.salary ? Number(monthData.salary.total) : 0);
+                    const monthFreelancePaid = Number(monthData.freelance_paid_total ?? 0);
+                    const monthFreelancePending = Number(monthData.freelance_pending_total ?? 0);
+                    const monthSalary = monthIncome + monthFreelancePaid || (monthData.salary ? Number(monthData.salary.total) : 0);
                     const monthActual = monthData.actual.reduce((sum, expense) => sum + Number(expense.amount), 0);
                     const monthGoalAllocated = (monthData.goal_allocations || []).reduce((sum, allocation) => sum + Number(allocation.amount), 0);
                     const monthAdjustmentTotal = (monthData.surplus_adjustments || []).reduce((sum, adjustment) => sum + Number(adjustment.amount), 0);

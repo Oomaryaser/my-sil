@@ -52,7 +52,10 @@ export type AppIconName =
   | 'send'
   | 'copy'
   | 'filter'
-  | 'edit';
+  | 'edit'
+  | 'briefcase'
+  | 'chevron-down'
+  | 'chevron-left';
 
 export const APP_ICON_NAMES: Record<AppIconName, AppIconName> = {
   logo: 'logo',
@@ -109,6 +112,9 @@ export const APP_ICON_NAMES: Record<AppIconName, AppIconName> = {
   copy: 'copy',
   filter: 'filter',
   edit: 'edit',
+  briefcase: 'briefcase',
+  'chevron-down': 'chevron-down',
+  'chevron-left': 'chevron-left',
 };
 
 const LEGACY_ICON_ALIASES: Record<string, AppIconName> = {

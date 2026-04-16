@@ -78,6 +78,16 @@ export async function GET(req: Request) {
       ORDER BY month DESC, date ASC, created_at ASC
     `;
 
+    const freelanceJobTotals = await sql`
+      SELECT
+        month,
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) AS freelance_paid_total,
+        COALESCE(SUM(CASE WHEN status = 'pending_payment' THEN amount ELSE 0 END), 0) AS freelance_pending_total
+      FROM freelance_jobs
+      WHERE user_id = ${auth.user.id}
+      GROUP BY month
+    `;
+
     const months: Record<string, {
       salary: object | null;
       planned: object[];
@@ -86,6 +96,8 @@ export async function GET(req: Request) {
       habits: object[];
       goal_allocations: object[];
       surplus_adjustments: object[];
+      freelance_paid_total: number;
+      freelance_pending_total: number;
     }> = {};
 
     const ensure = (month: string) => {
@@ -98,6 +110,8 @@ export async function GET(req: Request) {
           habits: [],
           goal_allocations: [],
           surplus_adjustments: [],
+          freelance_paid_total: 0,
+          freelance_pending_total: 0,
         };
       }
     };
@@ -141,6 +155,12 @@ export async function GET(req: Request) {
     for (const adjustment of surplusAdjustments) {
       ensure(adjustment.month);
       months[adjustment.month].surplus_adjustments.push(adjustment);
+    }
+
+    for (const row of freelanceJobTotals) {
+      ensure(row.month as string);
+      months[row.month as string].freelance_paid_total = Number(row.freelance_paid_total);
+      months[row.month as string].freelance_pending_total = Number(row.freelance_pending_total);
     }
 
     return NextResponse.json(months);

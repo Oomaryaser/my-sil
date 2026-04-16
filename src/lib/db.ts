@@ -232,6 +232,40 @@ export async function initDB() {
 
   await sql`CREATE INDEX IF NOT EXISTS todos_user_completed_idx ON todos (user_id, completed, created_at DESC)`;
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS freelance_clients (
+      id VARCHAR(64) PRIMARY KEY,
+      user_id VARCHAR(64) NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      parent_id VARCHAR(64),
+      color VARCHAR(20) DEFAULT '#a78bfa',
+      notes TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  await sql`CREATE INDEX IF NOT EXISTS freelance_clients_user_idx ON freelance_clients (user_id, created_at ASC)`;
+  await sql`CREATE INDEX IF NOT EXISTS freelance_clients_parent_idx ON freelance_clients (parent_id)`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS freelance_jobs (
+      id VARCHAR(64) PRIMARY KEY,
+      user_id VARCHAR(64) NOT NULL,
+      client_id VARCHAR(64) NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      amount NUMERIC NOT NULL DEFAULT 0,
+      month VARCHAR(7) NOT NULL,
+      work_date DATE,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending_payment',
+      payment_date DATE,
+      notes TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  await sql`CREATE INDEX IF NOT EXISTS freelance_jobs_user_month_idx ON freelance_jobs (user_id, month, created_at DESC)`;
+  await sql`CREATE INDEX IF NOT EXISTS freelance_jobs_client_idx ON freelance_jobs (client_id, created_at DESC)`;
+
   const ownerRows = await sql`
     SELECT id
     FROM users

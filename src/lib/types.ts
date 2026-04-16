@@ -163,6 +163,36 @@ export interface TodoItem {
   updated_at: string;
 }
 
+export type FreelanceJobStatus = 'pending_payment' | 'paid';
+
+export interface FreelanceClient {
+  id: string;
+  name: string;
+  parent_id?: string | null;
+  parent_name?: string | null;
+  color?: string;
+  notes?: string;
+  children?: FreelanceClient[];
+  jobs_count?: number;
+  pending_total?: number;
+  paid_total?: number;
+}
+
+export interface FreelanceJob {
+  id: string;
+  client_id: string;
+  client_name?: string;
+  client_color?: string;
+  title: string;
+  amount: number;
+  month: string;
+  work_date?: string | null;
+  status: FreelanceJobStatus;
+  payment_date?: string | null;
+  notes?: string;
+  created_at?: string;
+}
+
 export const CAT_ICONS: Record<string, AppIconName> = {
   food: 'food',
   transport: 'transport',

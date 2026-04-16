@@ -66,6 +66,9 @@ function IconPath({ name }: { name: AppIconName }) {
     copy: <><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></>,
     filter: <><path d="M4 6h16" /><path d="M7 12h10" /><path d="M10 18h4" /></>,
     edit: <><path d="m4 20 4.5-1 9-9-3.5-3.5-9 9L4 20Z" /><path d="m13.5 6.5 3.5 3.5" /></>,
+    briefcase: <><rect x="3" y="9" width="18" height="12" rx="2" /><path d="M8 9V7a4 4 0 0 1 8 0v2" /><path d="M3 14h18" /></>,
+    'chevron-down': <path d="m6 9 6 6 6-6" />,
+    'chevron-left': <path d="m15 18-6-6 6-6" />,
   };
 
   return paths[name];
