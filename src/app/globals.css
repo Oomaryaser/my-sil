@@ -411,7 +411,8 @@ body {
 .form-row.triple { grid-template-columns: 1fr 1fr 1fr; }
 .form-group { display: flex; flex-direction: column; gap: 6px; }
 .form-group label { font-size: 13px; font-weight: 600; color: var(--muted); }
-.form-control {
+.form-control,
+.input {
   padding: 10px 14px;
   background: var(--surface2);
   border: 1px solid var(--border);
@@ -423,8 +424,11 @@ body {
   font-family: inherit;
   /* منع الزوم على iOS عند الضغط */
   touch-action: manipulation;
+  -webkit-appearance: none;
+  appearance: none;
 }
-.form-control:focus { outline: none; border-color: var(--accent); }
+.form-control:focus,
+.input:focus { outline: none; border-color: var(--accent); }
 
 /* ── Buttons ── */
 .btn {
@@ -1661,6 +1665,21 @@ select.form-control option { background: var(--surface2); }
   .habits-insights { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+/* ── Freelance Section responsive ── */
+.freelance-layout {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.freelance-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+}
+.freelance-jobs {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Mobile */
 @media (max-width: 768px) {
   /* Show mobile topbar */
@@ -1671,7 +1690,7 @@ select.form-control option { background: var(--surface2); }
   .sidebar {
     transform: translateX(100%);
     top: 0;
-    width: 280px;
+    width: min(82vw, 300px);
     box-shadow: -8px 0 32px rgba(0,0,0,0.4);
   }
   .sidebar.sidebar-open { transform: translateX(0); }
@@ -1679,39 +1698,57 @@ select.form-control option { background: var(--surface2); }
   /* Main takes full width, offset for topbar */
   .main {
     margin-right: 0;
-    padding: 16px;
-    padding-top: calc(var(--topbar-h) + 16px);
+    padding: 12px;
+    padding-top: calc(var(--topbar-h) + 12px);
+    padding-bottom: 90px; /* room for FAB */
   }
 
   /* Cards: 2 cols */
   .cards-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+    gap: 8px;
+    margin-bottom: 16px;
   }
 
-  .stat-card { padding: 14px; }
+  .stat-card { padding: 12px 14px; }
   .stat-value { font-size: 20px; }
+  .stat-label { font-size: 11px; }
 
   /* Forms: 1 col */
-  .form-row { grid-template-columns: 1fr; gap: 12px; }
-  .form-row.triple { grid-template-columns: 1fr 1fr; }
+  .form-row { grid-template-columns: 1fr; gap: 10px; }
+  .form-row.triple { grid-template-columns: 1fr; }
 
   /* منع iOS من عمل zoom عند الضغط على أي حقل */
   .form-control,
-  input, select, textarea {
+  .input,
+  input,
+  select,
+  textarea {
     font-size: 16px !important;
+    min-height: 44px;
   }
 
   /* Page header */
+  .page-header { margin-bottom: 16px; }
   .page-header h2 { font-size: 20px; }
 
   /* Panel */
-  .panel-body { padding: 12px 14px; }
+  .panel { margin-bottom: 14px; }
+  .panel-body { padding: 12px; }
+  .panel-header { padding: 12px 14px; }
 
   /* Summary bar: wrap */
-  .summary-bar { gap: 10px; padding: 10px 12px; }
+  .summary-bar {
+    gap: 8px;
+    padding: 10px 12px;
+    flex-wrap: wrap;
+  }
   .summary-divider { display: none; }
-  .summary-item { min-width: 100px; }
+  .summary-item { min-width: 80px; flex: 1; }
+
+  /* Buttons */
+  .btn { min-height: 44px; }
+  .btn-sm { min-height: 36px; }
 
   .account-card-head {
     flex-direction: column;
@@ -1743,12 +1780,32 @@ select.form-control option { background: var(--surface2); }
   .history-month { flex-direction: column; align-items: flex-start; gap: 6px; }
 
   /* Toast */
-  .toast { bottom: 16px; max-width: 90vw; white-space: normal; text-align: center; }
+  .toast {
+    bottom: calc(env(safe-area-inset-bottom) + 16px);
+    max-width: 90vw;
+    white-space: normal;
+    text-align: center;
+  }
 
   .todo-layout {
     grid-template-columns: 1fr;
   }
 
+  /* Expense items: tighter on mobile */
+  .expense-item { padding: 8px 4px; }
+  .expense-name { font-size: 13px; }
+  .expense-amount { font-size: 13px; }
+
+  /* Freelance layout: stack on mobile */
+  .freelance-layout {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .freelance-sidebar {
+    width: 100%;
+  }
+
+  /* Voice FAB */
   .voice-assistant-fab {
     left: 14px;
     right: auto;
@@ -1768,10 +1825,10 @@ select.form-control option { background: var(--surface2); }
   }
 
   .voice-assistant-sheet {
-    left: 12px;
-    right: 12px;
-    top: calc(var(--topbar-h) + env(safe-area-inset-top) + 8px);
-    bottom: calc(env(safe-area-inset-bottom) + 12px);
+    left: 10px;
+    right: 10px;
+    top: calc(var(--topbar-h) + env(safe-area-inset-top) + 6px);
+    bottom: calc(env(safe-area-inset-bottom) + 10px);
     width: auto;
     max-height: none;
     border-radius: 20px;
@@ -1782,7 +1839,7 @@ select.form-control option { background: var(--surface2); }
   }
 
   .voice-assistant-body {
-    padding: 12px 14px max(14px, env(safe-area-inset-bottom));
+    padding: 10px 12px max(12px, env(safe-area-inset-bottom));
   }
 
   .voice-assistant-head h3 {
@@ -1795,7 +1852,7 @@ select.form-control option { background: var(--surface2); }
   .voice-action-content span,
   .voice-bubble p,
   .voice-listening-indicator {
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .voice-message .voice-bubble {
@@ -1816,7 +1873,8 @@ select.form-control option { background: var(--surface2); }
   }
 
   .voice-chat-input {
-    max-height: 26vh;
+    max-height: 22vh;
+    min-height: 72px;
   }
 
   .voice-confirm-actions,
@@ -1829,18 +1887,23 @@ select.form-control option { background: var(--surface2); }
   .voice-composer-actions .btn,
   .voice-submit-btn {
     width: 100%;
+    min-height: 48px;
   }
 
   .voice-round-btn {
     width: 100%;
     border-radius: 14px;
-    height: 46px;
+    height: 48px;
   }
 }
 
 /* Small phones */
 @media (max-width: 400px) {
+  .main { padding: 10px; padding-top: calc(var(--topbar-h) + 10px); padding-bottom: 80px; }
   .cards-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .stat-value { font-size: 18px; }
-  .stat-label { font-size: 11px; }
+  .stat-value { font-size: 17px; }
+  .stat-label { font-size: 10px; }
+  .stat-card { padding: 10px 12px; }
+  .page-header h2 { font-size: 18px; }
+  .panel-body { padding: 10px; }
 }

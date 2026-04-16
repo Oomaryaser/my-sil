@@ -308,10 +308,10 @@ export default function FreelanceSection({ currentMonth, refreshKey, showToast }
       </div>
 
       {/* MAIN LAYOUT: clients tree + jobs */}
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+      <div className="freelance-layout">
 
         {/* CLIENTS TREE */}
-        <div className="panel" style={{ width: 240, flexShrink: 0, padding: 0, overflow: 'hidden' }}>
+        <div className="panel freelance-sidebar" style={{ padding: 0, overflow: 'hidden' }}>
           <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 className="title-with-icon" style={{ margin: 0 }}>
               <AppIcon name="users" size={16} /><span>العملاء</span>
@@ -349,7 +349,7 @@ export default function FreelanceSection({ currentMonth, refreshKey, showToast }
         </div>
 
         {/* JOBS LIST */}
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="freelance-jobs" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* Jobs header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontSize: 13, color: 'var(--muted)' }}>
