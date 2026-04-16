@@ -604,7 +604,13 @@ export default function Home() {
   const totalExpectedIncome = incomeSources.reduce((sum, src) => sum + Number(src.expected_amount), 0);
   const freelancePaidTotal = Number(d.freelance_paid_total ?? 0);
   const freelancePendingTotal = Number(d.freelance_pending_total ?? 0);
-  const sal = totalIncome + freelancePaidTotal || (d.salary ? Number(d.salary.total) : 0);
+  // baseSal: راتب أو مصادر دخل مسجّلة (بدون فريلانس)
+  const baseSal = totalIncome || (d.salary ? Number(d.salary.total) : 0);
+  // sal: إجمالي الدخل الفعلي = مصادر الدخل + الفريلانس المستلم
+  const sal = baseSal + freelancePaidTotal;
+  // totalExpected: كل الدخل المتوقع (مصادر دخل أو راتب) + الفريلانس (مستلم + متوقع)
+  const baseExpected = totalExpectedIncome || (d.salary ? Number(d.salary.total) : 0);
+  const totalExpected = baseExpected + freelancePaidTotal + freelancePendingTotal;
   const plannedTotal = d.planned.reduce((sum, expense) => sum + Number(expense.amount), 0);
   const actualTotal = d.actual.reduce((sum, expense) => sum + Number(expense.amount), 0);
   const allocatedToGoalsTotal = goalAllocations.reduce((sum, allocation) => sum + Number(allocation.amount), 0);
@@ -866,7 +872,7 @@ export default function Home() {
                 <div className="stat-card blue">
                   <div className="stat-label">الدخل المحصّل</div>
                   <div className="stat-value blue">{formatNum(sal)}</div>
-                  <div className="stat-sub">من أصل {formatNum(totalExpectedIncome)}</div>
+                  <div className="stat-sub">من أصل {formatNum(totalExpected)}</div>
                 </div>
                 <div className="stat-card purple">
                   <div className="stat-label">المصاريف المتوقعة</div>
