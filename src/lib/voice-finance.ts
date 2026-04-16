@@ -1,11 +1,13 @@
 import { IncomeType } from '@/lib/types';
 
 export interface VoiceFinanceAction {
-  kind: 'expense' | 'income';
+  kind: 'expense' | 'income' | 'freelance';
   amount: number;
   description: string;
   category: string;
   incomeType: IncomeType;
+  freelance_client?: string;
+  freelance_status?: 'pending_payment' | 'paid';
 }
 
 export interface VoiceFinanceParseResult {

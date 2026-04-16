@@ -7,6 +7,7 @@ import { decryptUserSecret } from '@/lib/user-secrets';
 const GROQ_MODEL = process.env.GROQ_FINANCE_MODEL || 'openai/gpt-oss-20b';
 const EXPENSE_CATEGORIES = ['food', 'transport', 'bills', 'shopping', 'health', 'entertainment', 'gift', 'charity', 'savings', 'family', 'other'] as const;
 const INCOME_TYPES = ['salary', 'freelance', 'side'] as const;
+const FREELANCE_STATUSES = ['pending_payment', 'paid'] as const;
 const MAX_HISTORY_MESSAGES = 10;
 
 interface FinanceConversationMessage {
@@ -45,7 +46,7 @@ function buildSchema() {
           properties: {
             kind: {
               type: 'string',
-              enum: ['expense', 'income'],
+              enum: ['expense', 'income', 'freelance'],
             },
             amount: {
               type: 'integer',
@@ -62,8 +63,17 @@ function buildSchema() {
               type: 'string',
               enum: [...INCOME_TYPES],
             },
+            freelance_client: {
+              type: 'string',
+              description: 'اسم العميل أو الشركة — فقط لـ freelance kind',
+            },
+            freelance_status: {
+              type: 'string',
+              enum: [...FREELANCE_STATUSES],
+              description: 'paid إذا استلمت الفلوس، pending_payment إذا لم تستلم بعد',
+            },
           },
-          required: ['kind', 'amount', 'description', 'category', 'incomeType'],
+          required: ['kind', 'amount', 'description', 'category', 'incomeType', 'freelance_client', 'freelance_status'],
         },
       },
       warnings: {
@@ -77,13 +87,20 @@ function buildSchema() {
 
 function buildSystemPrompt() {
   return `
-You are an Arabic financial extraction engine for an Iraqi salary tracker app.
+You are an Arabic financial extraction engine for an Iraqi salary tracker app that also tracks freelance work.
 You read Iraqi Arabic or standard Arabic and convert the user's finance conversation into final structured financial actions.
 
 Rules:
 - Extract the final intended financial actions after considering the full unresolved conversation context.
 - If money was spent, set kind to "expense".
-- If money was received, set kind to "income".
+- If money was received (salary, side income), set kind to "income".
+- If the user mentions working FOR a client/company (freelance work), set kind to "freelance".
+  - Freelance signals: "اشتغلت لـ", "شغلة لـ", "عملت لـ", "اكملت مشروع لـ", "سلمت شغل لـ", "اشتغلت وي", "عملت مع"
+  - freelance_client: the client or company name (extract carefully)
+  - description: the work title (e.g. تصميم شعار, برمجة موقع)
+  - freelance_status: "paid" if user says they received payment, "pending_payment" if not paid yet or no mention
+  - Payment indicators for paid: "استلمت", "دفعوا", "وصلت الفلوس", "دفع لي"
+  - Payment indicators for pending: "ما دفعت", "بعد ما استلمت", "ما وصل", no mention of receiving
 - Amount must be a positive integer only.
 - Description must be short, clear, and in Arabic.
 - Resolve context and references such as: هاي، هذي، هذا، همين، الأولى، الثانية, later clarifications, repeated amounts, and named people.
@@ -91,14 +108,14 @@ Rules:
 - The latest user message may clarify, split, merge, replace, or correct previously mentioned transactions. Reflect the latest intent.
 - If the user is refining previously suggested actions, return the revised final list to apply now, not a delta unless the latest message clearly adds a new separate transaction.
 - If the user refers to previous candidate actions with phrases like "هاي", "هذي", "الثانية", "نفسها", "همين", bind those references to the existing unresolved actions or previous user messages.
-- If the user says an amount should become two transactions or mentions two owners/descriptions for one amount, split it accordingly only when the text clearly indicates that.
 - Do not emit generic descriptions like "حصلت" or "صرفت على" when a later phrase clarifies what that amount was for or from whom.
 - For expense actions choose category from:
   food, transport, bills, shopping, health, entertainment, gift, charity, savings, family, other
 - For income actions choose incomeType from:
   salary, freelance, side
-- For expense actions set incomeType to "side".
-- For income actions set category to "other".
+- For expense actions set incomeType to "side", freelance_client to "", freelance_status to "pending_payment".
+- For income actions set category to "other", freelance_client to "", freelance_status to "pending_payment".
+- For freelance actions set category to "other", incomeType to "freelance".
 - If text is ambiguous, add a warning and do not invent missing amounts.
 - If a phrase has no valid amount, do not create an action for it.
 - Return only valid JSON matching the schema.
@@ -428,7 +445,8 @@ function sanitizeAiResult(raw: unknown, originalText: string): VoiceFinanceParse
       actions
         .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
         .map((item): VoiceFinanceAction => {
-        const kind: VoiceFinanceAction['kind'] = item.kind === 'income' ? 'income' : 'expense';
+        const kind: VoiceFinanceAction['kind'] =
+          item.kind === 'income' ? 'income' : item.kind === 'freelance' ? 'freelance' : 'expense';
         const category = typeof item.category === 'string' && EXPENSE_CATEGORIES.includes(item.category as (typeof EXPENSE_CATEGORIES)[number])
           ? item.category
           : 'other';
@@ -436,6 +454,9 @@ function sanitizeAiResult(raw: unknown, originalText: string): VoiceFinanceParse
           typeof item.incomeType === 'string' && INCOME_TYPES.includes(item.incomeType as (typeof INCOME_TYPES)[number])
             ? (item.incomeType as VoiceFinanceAction['incomeType'])
             : 'side';
+        const freelanceClient = typeof item.freelance_client === 'string' ? item.freelance_client.trim() : '';
+        const freelanceStatus: VoiceFinanceAction['freelance_status'] =
+          item.freelance_status === 'paid' ? 'paid' : 'pending_payment';
 
         return {
           kind,
@@ -445,9 +466,13 @@ function sanitizeAiResult(raw: unknown, originalText: string): VoiceFinanceParse
               ? item.description.trim()
               : kind === 'income'
                 ? 'دخل صوتي'
-                : 'مصروف صوتي',
-          category: kind === 'income' ? 'other' : category,
+                : kind === 'freelance'
+                  ? 'عمل حر'
+                  : 'مصروف صوتي',
+          category: kind === 'income' || kind === 'freelance' ? 'other' : category,
           incomeType: kind === 'expense' ? 'side' : incomeType,
+          freelance_client: freelanceClient,
+          freelance_status: freelanceStatus,
         };
         })
         .filter((action) => Number.isFinite(action.amount) && action.amount > 0),

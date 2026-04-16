@@ -9,6 +9,7 @@ interface Props {
   hasGroqApiKey: boolean;
   showToast: (message: string, type?: 'success' | 'error') => void;
   onApplied: () => Promise<unknown>;
+  onFreelanceJobAdded?: () => void;
 }
 
 interface SpeechRecognitionResultLike {
@@ -92,7 +93,11 @@ function buildNotes(action: VoiceFinanceAction, sourceText: string) {
   return `${prefix} · ${sourceText}`.slice(0, 250);
 }
 
-export default function VoiceFinanceAssistant({ month, hasGroqApiKey, showToast, onApplied }: Props) {
+function makeUid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+export default function VoiceFinanceAssistant({ month, hasGroqApiKey, showToast, onApplied, onFreelanceJobAdded }: Props) {
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const keepListeningRef = useRef(false);
   const finalTranscriptRef = useRef('');
@@ -357,6 +362,8 @@ export default function VoiceFinanceAssistant({ month, hasGroqApiKey, showToast,
     setSubmitting(true);
     const today = getTodayIso();
 
+    let freelanceAdded = false;
+
     try {
       for (const action of pendingResult.actions) {
         if (action.kind === 'expense') {
@@ -379,6 +386,65 @@ export default function VoiceFinanceAssistant({ month, hasGroqApiKey, showToast,
             const data = await res.json().catch(() => ({ error: 'تعذر حفظ المصروف' }));
             throw new Error(data.error || 'تعذر حفظ المصروف');
           }
+          continue;
+        }
+
+        if (action.kind === 'freelance') {
+          // Find or create the client, then save the job
+          const clientName = action.freelance_client?.trim() || 'عميل غير محدد';
+
+          // Try to find existing client
+          const clientsRes = await fetch('/api/freelance/clients');
+          let clientId = '';
+          if (clientsRes.ok) {
+            const clientsData = await clientsRes.json() as Array<{ id: string; name: string; children?: unknown[] }>;
+            const flatten = (list: Array<{ id: string; name: string; children?: unknown[] }>): Array<{ id: string; name: string }> =>
+              list.flatMap(c => [{ id: c.id, name: c.name }, ...flatten((c.children || []) as Array<{ id: string; name: string; children?: unknown[] }>)]);
+            const allClients = flatten(clientsData);
+            const match = allClients.find(c =>
+              c.name.toLowerCase() === clientName.toLowerCase() ||
+              c.name.includes(clientName) ||
+              clientName.includes(c.name)
+            );
+            if (match) clientId = match.id;
+          }
+
+          // Create client if not found
+          if (!clientId) {
+            const createRes = await fetch('/api/freelance/clients', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: clientName }),
+            });
+            if (!createRes.ok) {
+              const data = await createRes.json().catch(() => ({ error: 'تعذر إنشاء العميل' }));
+              throw new Error(data.error || 'تعذر إنشاء العميل');
+            }
+            const created = await createRes.json() as { id: string };
+            clientId = created.id;
+          }
+
+          // Save the job
+          const jobRes = await fetch('/api/freelance/jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              client_id: clientId,
+              title: action.description,
+              amount: action.amount,
+              month,
+              work_date: today,
+              status: action.freelance_status || 'pending_payment',
+              notes: `أضيف عبر المساعد الذكي · ${pendingResult.originalText}`.slice(0, 250),
+            }),
+          });
+
+          if (!jobRes.ok) {
+            const data = await jobRes.json().catch(() => ({ error: 'تعذر حفظ العمل الحر' }));
+            throw new Error(data.error || 'تعذر حفظ العمل الحر');
+          }
+
+          freelanceAdded = true;
           continue;
         }
 
@@ -421,6 +487,7 @@ export default function VoiceFinanceAssistant({ month, hasGroqApiKey, showToast,
       }
 
       await onApplied();
+      if (freelanceAdded && onFreelanceJobAdded) onFreelanceJobAdded();
       appendMessage({
         role: 'assistant',
         text: `تم تنفيذ ${pendingResult.actions.length} عملية بنجاح.`,
@@ -538,7 +605,8 @@ export default function VoiceFinanceAssistant({ month, hasGroqApiKey, showToast,
                   <div className="voice-example-list">
                     <span>اليوم صرفت 500 غداء و 200 تكسي و 100 قهوة</span>
                     <span>استلمت 300000 راتب</span>
-                    <span>حصلت 75000 من عميل تصميم</span>
+                    <span>اشتغلت لشركة الأمل على تصميم موقع بسعر 150 دولار وبعد ما دفعوا</span>
+                    <span>سلمت مشروع برمجة لعميل الفلاني بـ 200000 واستلمت الفلوس</span>
                   </div>
                 </div>
               </article>
@@ -565,11 +633,18 @@ export default function VoiceFinanceAssistant({ month, hasGroqApiKey, showToast,
                       {message.actions.map((action, index) => (
                         <article key={`${message.id}-${action.kind}-${action.description}-${index}`} className="voice-action-card">
                           <div className="voice-action-icon">
-                            <AppIcon name={action.kind === 'expense' ? 'receipt' : 'wallet'} size={16} />
+                            <AppIcon name={action.kind === 'expense' ? 'receipt' : action.kind === 'freelance' ? 'briefcase' : 'wallet'} size={16} />
                           </div>
                           <div className="voice-action-content">
-                            <strong>{action.kind === 'expense' ? 'مصروف فعلي' : 'دخل مستلم'}</strong>
+                            <strong>
+                              {action.kind === 'expense' ? 'مصروف فعلي' : action.kind === 'freelance' ? `عمل حر — ${action.freelance_client || 'عميل'}` : 'دخل مستلم'}
+                            </strong>
                             <span>{action.description}</span>
+                            {action.kind === 'freelance' && (
+                              <span style={{ fontSize: 11, marginTop: 2, display: 'block', color: action.freelance_status === 'paid' ? 'var(--green)' : 'var(--orange)' }}>
+                                {action.freelance_status === 'paid' ? '✓ تم الاستلام' : '⏳ لم يُستلم بعد'}
+                              </span>
+                            )}
                           </div>
                           <div className="voice-action-meta">
                             <div className="voice-action-amount">{action.amount.toLocaleString('en-US')}</div>

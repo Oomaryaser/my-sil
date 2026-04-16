@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import AppIcon from '@/components/AppIcon';
 import { FreelanceClient, FreelanceJob, formatNum, formatDate, getDayName } from '@/lib/types';
 
 interface Props {
   currentMonth: string;
-  hasGroqKey: boolean;
-  onFreelanceDataChange: () => void;
+  refreshKey?: number;
   showToast: (msg: string, type?: 'success' | 'error') => void;
 }
 
@@ -16,7 +15,7 @@ const CLIENT_COLORS = [
   '#f87171', '#fb923c', '#c084fc', '#22d3ee',
 ];
 
-export default function FreelanceSection({ currentMonth, hasGroqKey, onFreelanceDataChange, showToast }: Props) {
+export default function FreelanceSection({ currentMonth, refreshKey, showToast }: Props) {
   const [clients, setClients] = useState<FreelanceClient[]>([]);
   const [jobs, setJobs] = useState<FreelanceJob[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -24,10 +23,6 @@ export default function FreelanceSection({ currentMonth, hasGroqKey, onFreelance
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
 
-  // AI input
-  const [aiText, setAiText] = useState('');
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiPreview, setAiPreview] = useState<null | { client: string; title: string; amount: number; status: 'pending_payment' | 'paid'; notes: string }>(null);
 
   // Add client form
   const [showAddClient, setShowAddClient] = useState(false);
@@ -45,8 +40,6 @@ export default function FreelanceSection({ currentMonth, hasGroqKey, onFreelance
   const [newJobStatus, setNewJobStatus] = useState<'pending_payment' | 'paid'>('pending_payment');
   const [newJobNotes, setNewJobNotes] = useState('');
   const [savingJob, setSavingJob] = useState(false);
-
-  const aiInputRef = useRef<HTMLTextAreaElement>(null);
 
   // Flatten clients for selects
   const flatClients = useCallback((list: FreelanceClient[], depth = 0): Array<FreelanceClient & { depth: number }> => {
@@ -90,8 +83,8 @@ export default function FreelanceSection({ currentMonth, hasGroqKey, onFreelance
     }
   }, [currentMonth, selectedClientId, showToast]);
 
-  useEffect(() => { loadClients(); }, [loadClients]);
-  useEffect(() => { loadJobs(); }, [loadJobs]);
+  useEffect(() => { loadClients(); }, [loadClients, refreshKey]);
+  useEffect(() => { loadJobs(); }, [loadJobs, refreshKey]);
 
   // Totals for current view
   const pendingTotal = jobs.filter(j => j.status === 'pending_payment').reduce((s, j) => s + Number(j.amount), 0);
@@ -105,54 +98,6 @@ export default function FreelanceSection({ currentMonth, hasGroqKey, onFreelance
   const monthPaid = selectedClientId
     ? allClients.reduce((s, c) => s + Number(c.paid_total ?? 0), 0)
     : paidTotal;
-
-  // AI parse
-  const handleAiSubmit = async () => {
-    if (!aiText.trim()) return;
-    setAiLoading(true);
-    setAiPreview(null);
-    try {
-      const res = await fetch('/api/ai/freelance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: aiText }),
-      });
-      const data = await res.json() as { client?: string; title?: string; amount?: number; status?: 'pending_payment' | 'paid'; notes?: string; error?: string };
-      if (!res.ok) throw new Error(data.error || 'خطأ في التحليل');
-      setAiPreview({
-        client: data.client || '',
-        title: data.title || '',
-        amount: data.amount || 0,
-        status: data.status || 'pending_payment',
-        notes: data.notes || '',
-      });
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : 'خطأ في AI', 'error');
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
-  const applyAiPreview = async () => {
-    if (!aiPreview) return;
-    // Find or suggest client
-    const matchedClient = allClients.find(c => c.name.toLowerCase().includes(aiPreview.client.toLowerCase()) || aiPreview.client.toLowerCase().includes(c.name.toLowerCase()));
-    setNewJobTitle(aiPreview.title);
-    setNewJobAmount(String(aiPreview.amount));
-    setNewJobStatus(aiPreview.status);
-    setNewJobNotes(aiPreview.notes);
-    setNewJobDate(new Date().toISOString().slice(0, 10));
-    if (matchedClient) {
-      setNewJobClientId(matchedClient.id);
-    } else if (aiPreview.client) {
-      // Pre-fill new client name
-      setNewClientName(aiPreview.client);
-      setShowAddClient(true);
-    }
-    setShowAddJob(true);
-    setAiPreview(null);
-    setAiText('');
-  };
 
   // Add client
   const handleAddClient = async () => {
@@ -188,7 +133,7 @@ export default function FreelanceSection({ currentMonth, hasGroqKey, onFreelance
       await Promise.all([loadClients(), loadJobs()]);
       if (selectedClientId === id) setSelectedClientId(null);
       showToast('تم الحذف');
-      onFreelanceDataChange();
+
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'خطأ', 'error');
     }
@@ -225,7 +170,7 @@ export default function FreelanceSection({ currentMonth, hasGroqKey, onFreelance
       setNewJobStatus('pending_payment');
       setShowAddJob(false);
       showToast('تمت إضافة العمل');
-      onFreelanceDataChange();
+
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'خطأ', 'error');
     } finally {
@@ -244,7 +189,7 @@ export default function FreelanceSection({ currentMonth, hasGroqKey, onFreelance
       if (!res.ok) throw new Error('تعذر التحديث');
       await Promise.all([loadJobs(), loadClients()]);
       showToast('تم تسجيل الاستلام ✓');
-      onFreelanceDataChange();
+
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'خطأ', 'error');
     }
@@ -256,7 +201,7 @@ export default function FreelanceSection({ currentMonth, hasGroqKey, onFreelance
       if (!res.ok) throw new Error('تعذر الحذف');
       await Promise.all([loadJobs(), loadClients()]);
       showToast('تم الحذف');
-      onFreelanceDataChange();
+
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'خطأ', 'error');
     }
@@ -342,80 +287,6 @@ export default function FreelanceSection({ currentMonth, hasGroqKey, onFreelance
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-      {/* AI INPUT BAR */}
-      <div className="panel" style={{ padding: 16 }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-          <div style={{ flex: 1 }}>
-            <textarea
-              ref={aiInputRef}
-              value={aiText}
-              onChange={e => setAiText(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAiSubmit(); } }}
-              placeholder={hasGroqKey ? 'مثال: اليوم اشتغلت لشركة الفلانية على تصميم شعار بسعر 150 دولار وبعد ما دفعت...' : 'أضف مفتاح Groq من الإعدادات لاستخدام المساعد الذكي'}
-              disabled={!hasGroqKey || aiLoading}
-              rows={2}
-              style={{
-                width: '100%',
-                background: 'var(--surface2)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                padding: '10px 12px',
-                fontSize: 13,
-                color: 'var(--text, #fff)',
-                resize: 'none',
-                outline: 'none',
-                fontFamily: 'inherit',
-                direction: 'rtl',
-                opacity: hasGroqKey ? 1 : 0.5,
-              }}
-            />
-          </div>
-          <button
-            className="btn btn-primary btn-with-icon"
-            style={{ height: 44, flexShrink: 0 }}
-            onClick={handleAiSubmit}
-            disabled={!hasGroqKey || aiLoading || !aiText.trim()}
-          >
-            {aiLoading ? <AppIcon name="wave" size={18} /> : <AppIcon name="sparkles" size={18} />}
-            <span>{aiLoading ? 'يحلل...' : 'تحليل AI'}</span>
-          </button>
-        </div>
-
-        {/* AI Preview */}
-        {aiPreview && (
-          <div style={{ marginTop: 12, padding: 12, background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: 200 }}>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>نتيجة التحليل:</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 12, background: 'var(--surface)', borderRadius: 6, padding: '3px 8px', border: '1px solid var(--border)' }}>
-                  <span style={{ color: 'var(--muted)' }}>العميل: </span>{aiPreview.client || '—'}
-                </span>
-                <span style={{ fontSize: 12, background: 'var(--surface)', borderRadius: 6, padding: '3px 8px', border: '1px solid var(--border)' }}>
-                  <span style={{ color: 'var(--muted)' }}>العمل: </span>{aiPreview.title || '—'}
-                </span>
-                <span style={{ fontSize: 12, background: 'var(--surface)', borderRadius: 6, padding: '3px 8px', border: '1px solid var(--border)' }}>
-                  <span style={{ color: 'var(--muted)' }}>المبلغ: </span><strong style={{ color: 'var(--green)' }}>{formatNum(aiPreview.amount)}</strong>
-                </span>
-                <span style={{
-                  fontSize: 12, borderRadius: 6, padding: '3px 8px', fontWeight: 600,
-                  background: aiPreview.status === 'paid' ? '#16a34a20' : '#f59e0b20',
-                  color: aiPreview.status === 'paid' ? 'var(--green)' : 'var(--orange)',
-                  border: `1px solid ${aiPreview.status === 'paid' ? '#16a34a40' : '#f59e0b40'}`,
-                }}>
-                  {aiPreview.status === 'paid' ? '✓ تم الاستلام' : '⏳ لم يُستلم بعد'}
-                </span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-primary btn-sm btn-with-icon" onClick={applyAiPreview}>
-                <AppIcon name="check" size={14} /><span>تطبيق</span>
-              </button>
-              <button className="btn btn-ghost btn-sm" onClick={() => setAiPreview(null)}>تجاهل</button>
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* SUMMARY BAR */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>

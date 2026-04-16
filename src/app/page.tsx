@@ -85,6 +85,7 @@ export default function Home() {
   const [modalType, setModalType] = useState<ExpenseType>('planned');
   const [epicGoals, setEpicGoals] = useState<EpicGoal[]>([]);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' as 'success' | 'error' });
+  const [freelanceRefreshKey, setFreelanceRefreshKey] = useState(0);
   const [copyDialog, setCopyDialog] = useState<{ fromMonth: string; toMonth: string; expenses: Expense[] } | null>(null);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
@@ -1076,8 +1077,7 @@ export default function Home() {
               </div>
               <FreelanceSection
                 currentMonth={currentMonth}
-                hasGroqKey={Boolean(user?.has_groq_api_key)}
-                onFreelanceDataChange={loadAll}
+                refreshKey={freelanceRefreshKey}
                 showToast={showToast}
               />
             </div>
@@ -1439,6 +1439,7 @@ export default function Home() {
           hasGroqApiKey={Boolean(user?.has_groq_api_key)}
           showToast={showToast}
           onApplied={loadAll}
+          onFreelanceJobAdded={() => setFreelanceRefreshKey(k => k + 1)}
         />
       )}
 
